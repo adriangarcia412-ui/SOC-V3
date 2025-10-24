@@ -1,405 +1,453 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 
-/** =========================
- *  CONFIG
- *  ========================= */
-const LS_KEY = "SOC_V3_REGISTROS";
+/** ===============================
+ *   CONFIGURACIÓN
+ *  =============================== */
+const LS_KEY = "SOC_V3_REGISTROS_SOCFORM";
 
-// Opciones de ejemplo (puedes cambiarlas cuando quieras)
-const CATEGORIAS = ["Academia", "Convivencia", "Higiene", "Puntualidad"];
-const CONDUCTAS = [
-  "Participa en clase",
-  "Interrumpe",
-  "Ayuda a un compañero/a",
-  "Uso correcto de uniforme",
-  "Llega tarde",
+// Ítems exactamente como tu formato
+const ITEMS = [
+  "Usa herramientas adecuadas para la tarea",
+  "Se usan los equipos de manera segura, sin improvisaciones",
+  "Usa correctamente el EPP (colocado y ajustado)",
+  "El área está limpia y libre de materiales fuera de lugar",
+  "Realiza correctamente la manipulación de las cargas",
+  "No presenta distracciones por celular durante la ejecución de las actividades",
+  "Los equipos se encuentran en buen estado y funcionales",
+  "Ejecuta sus actividades conforme a la instrucción de trabajo",
+  "Levanta objetos realizando la técnica de cargas correctamente",
+  "Se asegura que sus equipos o herramientas se encuentren en buen estado",
+  "No introduce manos ni herramientas en maquinaria en movimiento",
+  "No transporta cargas por encima de otros trabajadores",
+  "Retira rebabas o virutas con herramienta, no con la mano",
+  "Mantiene atención constante a su entorno durante la operación",
+  "Evita colocarse en la línea de fuego o zonas de riesgo",
+  "El personal ha sido entrenado previamente para realizar esta actividad",
 ];
-const INTENSIDAD = ["Baja", "Media", "Alta"];
 
-/** =========================
- *  UTILS
- *  ========================= */
-const hoyISO = () => new Date().toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+/** ==========================================
+ *   Helpers de cálculo y utilidades
+ *  ========================================== */
+function siCount(obj) {
+  return Object.values(obj).filter((v) => v === "SI").length;
+}
+function totalCount(obj) {
+  return Object.keys(obj).length;
+}
+function pct(si, total) {
+  if (!total) return 0;
+  return Math.round((si / total) * 100);
+}
 
-const toCSV = (rows) => {
-  if (!rows.length) return "";
-  const headers = Object.keys(rows[0]);
-  const lines = [
-    headers.join(","), // encabezados
-    ...rows.map((r) =>
-      headers
-        .map((h) =>
-          String(r[h] ?? "")
-            .replaceAll('"', '""')
-            .replaceAll("\n", " ")
-        )
-        .map((v) => `"${v}"`)
-        .join(",")
-    ),
-  ];
-  return lines.join("\n");
-};
+function todayLocalISO() {
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, "0");
+  const y = d.getFullYear();
+  const m = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const hh = pad(d.getHours());
+  const mm = pad(d.getMinutes());
+  return `${y}-${m}-${dd}T${hh}:${mm}`;
+}
 
-const download = (filename, content, mime = "text/plain;charset=utf-8") => {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-};
-
-/** =========================
- *  APP
- *  ========================= */
+/** ==========================================
+ *   Componente principal
+ *  ========================================== */
 export default function App() {
-  const [registros, setRegistros] = useState([]);
-  const [busqueda, setBusqueda] = useState("");
-  const [editId, setEditId] = useState(null);
+  const [fecha, setFecha] = useState(todayLocalISO());
 
-  const [form, setForm] = useState({
-    fecha: hoyISO(),
-    estudiante: "",
-    categoria: CATEGORIAS[0],
-    conducta: CONDUCTAS[0],
-    intensidad: INTENSIDAD[0],
-    notas: "",
+  const [empleado, setEmpleado] = useState({
+    nombre: "",
+    antiguedad: "",
+    area: "",
+    supervisor: "",
   });
 
-  // Cargar desde localStorage
-  useEffect(() => {
+  // Respuestas INICIAL y FINAL → "SI" | "NO" | ""
+  const emptyAnswers = useMemo(
+    () =>
+      ITEMS.reduce(
+        (acc, _label, idx) => {
+          acc[idx] = ""; // sin respuesta por defecto
+          return acc;
+        },
+        /** @type {Record<number,""|"SI"|"NO">} */ ({})
+      ),
+    []
+  );
+
+  const [inicial, setInicial] = useState(emptyAnswers);
+  const [finalEval, setFinalEval] = useState(emptyAnswers);
+
+  const [notas, setNotas] = useState("");
+
+  const [registros, setRegistros] = useState(() => {
     try {
       const raw = localStorage.getItem(LS_KEY);
-      if (raw) setRegistros(JSON.parse(raw));
-    } catch {}
-  }, []);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
-  // Guardar en localStorage
+  // Persistencia
   useEffect(() => {
     localStorage.setItem(LS_KEY, JSON.stringify(registros));
   }, [registros]);
 
-  const limpiar = () =>
-    setForm({
-      fecha: hoyISO(),
-      estudiante: "",
-      categoria: CATEGORIAS[0],
-      conducta: CONDUCTAS[0],
-      intensidad: INTENSIDAD[0],
-      notas: "",
-    });
+  // Cálculos
+  const siInicial = siCount(inicial);
+  const siFinal = siCount(finalEval);
+  const total = ITEMS.length;
 
-  const onChange = (e) =>
-    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const pctInicial = pct(siInicial, total);
+  const pctFinal = pct(siFinal, total);
 
-  const onSubmit = (e) => {
-    e.preventDefault();
-    const payload = {
-      id: editId ?? Date.now(),
-      ...form,
+  // Definiciones (puedes ajustarlas después):
+  // PS  = % cumplimiento final
+  // IC  = % final - % inicial (mejora)
+  const PS = pctFinal;
+  const IC = pctFinal - pctInicial;
+
+  const completarInicial = (idx, val) =>
+    setInicial((prev) => ({ ...prev, [idx]: val }));
+  const completarFinal = (idx, val) =>
+    setFinalEval((prev) => ({ ...prev, [idx]: val }));
+
+  function limpiar() {
+    setFecha(todayLocalISO());
+    setEmpleado({ nombre: "", antiguedad: "", area: "", supervisor: "" });
+    setInicial(emptyAnswers);
+    setFinalEval(emptyAnswers);
+    setNotas("");
+  }
+
+  function agregarRegistro() {
+    const registro = {
+      fecha,
+      empleado,
+      respuestas: {
+        inicial,
+        final: finalEval,
+      },
+      metrics: {
+        pctInicial,
+        pctFinal,
+        PS,
+        IC,
+      },
+      notas: notas.trim(),
+      createdAt: new Date().toISOString(),
     };
-    if (editId) {
-      // editar
-      setRegistros((rs) => rs.map((r) => (r.id === editId ? payload : r)));
-      setEditId(null);
-    } else {
-      // crear
-      setRegistros((rs) => [payload, ...rs]);
+    setRegistros((r) => [registro, ...r]);
+    alert("✓ Registro guardado localmente (navegador).");
+  }
+
+  function exportarCSV() {
+    if (!registros.length) {
+      alert("No hay registros para exportar.");
+      return;
     }
-    limpiar();
-  };
 
-  const onEdit = (r) => {
-    setEditId(r.id);
-    setForm({
-      fecha: r.fecha,
-      estudiante: r.estudiante,
-      categoria: r.categoria,
-      conducta: r.conducta,
-      intensidad: r.intensidad,
-      notas: r.notas,
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  };
+    // Encabezados base
+    const headers = [
+      "Fecha",
+      "Empleado",
+      "Antigüedad",
+      "Área",
+      "Supervisor",
+      ...ITEMS.map((t, i) => `Inicial: ${t}`),
+      ...ITEMS.map((t, i) => `Final: ${t}`),
+      "% Inicial",
+      "% Final",
+      "PS",
+      "IC",
+      "Notas",
+      "Creado (ISO)",
+    ];
 
-  const onDelete = (id) => {
-    if (!confirm("¿Eliminar este registro?")) return;
-    setRegistros((rs) => rs.filter((r) => r.id !== id));
-    if (editId === id) {
-      setEditId(null);
-      limpiar();
-    }
-  };
+    const rows = registros.map((r) => [
+      r.fecha,
+      r.empleado?.nombre ?? "",
+      r.empleado?.antiguedad ?? "",
+      r.empleado?.area ?? "",
+      r.empleado?.supervisor ?? "",
+      ...ITEMS.map((_t, i) => r.respuestas.inicial[i] ?? ""),
+      ...ITEMS.map((_t, i) => r.respuestas.final[i] ?? ""),
+      r.metrics?.pctInicial ?? "",
+      r.metrics?.pctFinal ?? "",
+      r.metrics?.PS ?? "",
+      r.metrics?.IC ?? "",
+      r.notas ?? "",
+      r.createdAt ?? "",
+    ]);
 
-  const exportarCSV = () => {
-    if (!registros.length) return alert("No hay registros para exportar.");
-    const csv = toCSV(registros);
-    download(`SOC-V3_${new Date().toISOString().slice(0, 10)}.csv`, csv, "text/csv;charset=utf-8");
-  };
-
-  const filtrados = useMemo(() => {
-    if (!busqueda.trim()) return registros;
-    const q = busqueda.toLowerCase();
-    return registros.filter(
-      (r) =>
-        r.estudiante.toLowerCase().includes(q) ||
-        r.conducta.toLowerCase().includes(q) ||
-        r.categoria.toLowerCase().includes(q) ||
-        r.intensidad.toLowerCase().includes(q) ||
-        r.notas.toLowerCase().includes(q)
+    const all = [headers, ...rows];
+    const csv = all.map((row) =>
+      row
+        .map((cell) => {
+          const str = String(cell ?? "");
+          // escape básico CSV
+          if (str.includes(",") || str.includes('"') || str.includes("\n")) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        })
+        .join(",")
     );
-  }, [busqueda, registros]);
+
+    const blob = new Blob([csv.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `SOC_V3_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
-    <div style={styles.wrap}>
-      <h1 style={styles.title}>SOC V3</h1>
-      <p style={{ marginTop: -10, color: "#666" }}>
-        Nuevo Sistema de Observación de Comportamientos
-      </p>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="mx-auto w-full max-w-6xl px-4">
+        <header className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">SOC V3</h1>
+          <p className="text-gray-600">
+            Sistema de Observación de Comportamientos (SOC)
+          </p>
+        </header>
 
-      {/* ===== FORM ===== */}
-      <form onSubmit={onSubmit} style={styles.card}>
-        <div style={styles.grid}>
-          <div style={styles.field}>
-            <label>Fecha y hora</label>
-            <input
-              type="datetime-local"
-              name="fecha"
-              value={form.fecha}
-              onChange={onChange}
-              required
-            />
-          </div>
+        {/* Datos generales */}
+        <section className="rounded-xl bg-white p-6 shadow">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Fecha y hora
+              </label>
+              <input
+                type="datetime-local"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Nombre del empleado
+              </label>
+              <input
+                type="text"
+                placeholder="Nombre y apellido"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                value={empleado.nombre}
+                onChange={(e) =>
+                  setEmpleado((p) => ({ ...p, nombre: e.target.value }))
+                }
+              />
+            </div>
 
-          <div style={styles.field}>
-            <label>Estudiante</label>
-            <input
-              type="text"
-              name="estudiante"
-              value={form.estudiante}
-              onChange={onChange}
-              placeholder="Nombre y apellido"
-              required
-            />
-          </div>
-
-          <div style={styles.field}>
-            <label>Categoría</label>
-            <select name="categoria" value={form.categoria} onChange={onChange}>
-              {CATEGORIAS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={styles.field}>
-            <label>Conducta</label>
-            <select name="conducta" value={form.conducta} onChange={onChange}>
-              {CONDUCTAS.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={styles.field}>
-            <label>Intensidad</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              {INTENSIDAD.map((i) => (
-                <label key={i} style={styles.badgeOpt}>
-                  <input
-                    type="radio"
-                    name="intensidad"
-                    value={i}
-                    checked={form.intensidad === i}
-                    onChange={onChange}
-                  />
-                  <span>{i}</span>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-gray-700">
+                Antigüedad
+              </label>
+              <input
+                type="text"
+                placeholder="Ej. 2 años"
+                className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                value={empleado.antiguedad}
+                onChange={(e) =>
+                  setEmpleado((p) => ({ ...p, antiguedad: e.target.value }))
+                }
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Área
                 </label>
-              ))}
+                <input
+                  type="text"
+                  placeholder="Área"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                  value={empleado.area}
+                  onChange={(e) =>
+                    setEmpleado((p) => ({ ...p, area: e.target.value }))
+                  }
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">
+                  Supervisor
+                </label>
+                <input
+                  type="text"
+                  placeholder="Supervisor"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
+                  value={empleado.supervisor}
+                  onChange={(e) =>
+                    setEmpleado((p) => ({ ...p, supervisor: e.target.value }))
+                  }
+                />
+              </div>
             </div>
           </div>
+        </section>
 
-          <div style={{ ...styles.field, gridColumn: "1 / -1" }}>
-            <label>Notas (opcional)</label>
+        {/* Tabla de evaluación */}
+        <section className="mt-6 rounded-xl bg-white p-6 shadow">
+          <h2 className="mb-4 text-xl font-semibold text-gray-900">Evaluación</h2>
+
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr className="bg-gray-50">
+                  <th className="px-3 py-2 text-left text-sm font-semibold text-gray-700">
+                    Ítem
+                  </th>
+                  <th className="px-3 py-2 text-center text-sm font-semibold text-gray-700">
+                    INICIAL<br />SI
+                  </th>
+                  <th className="px-3 py-2 text-center text-sm font-semibold text-gray-700">
+                    INICIAL<br />NO
+                  </th>
+                  <th className="px-3 py-2 text-center text-sm font-semibold text-gray-700">
+                    FINAL<br />SI
+                  </th>
+                  <th className="px-3 py-2 text-center text-sm font-semibold text-gray-700">
+                    FINAL<br />NO
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {ITEMS.map((label, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50">
+                    <td className="px-3 py-2 text-sm text-gray-800">{label}</td>
+
+                    {/* INICIAL SI */}
+                    <td className="px-3 py-2 text-center">
+                      <input
+                        type="radio"
+                        name={`ini-${idx}`}
+                        className="h-4 w-4"
+                        checked={inicial[idx] === "SI"}
+                        onChange={() => completarInicial(idx, "SI")}
+                      />
+                    </td>
+                    {/* INICIAL NO */}
+                    <td className="px-3 py-2 text-center">
+                      <input
+                        type="radio"
+                        name={`ini-${idx}`}
+                        className="h-4 w-4"
+                        checked={inicial[idx] === "NO"}
+                        onChange={() => completarInicial(idx, "NO")}
+                      />
+                    </td>
+
+                    {/* FINAL SI */}
+                    <td className="px-3 py-2 text-center">
+                      <input
+                        type="radio"
+                        name={`fin-${idx}`}
+                        className="h-4 w-4"
+                        checked={finalEval[idx] === "SI"}
+                        onChange={() => completarFinal(idx, "SI")}
+                      />
+                    </td>
+                    {/* FINAL NO */}
+                    <td className="px-3 py-2 text-center">
+                      <input
+                        type="radio"
+                        name={`fin-${idx}`}
+                        className="h-4 w-4"
+                        checked={finalEval[idx] === "NO"}
+                        onChange={() => completarFinal(idx, "NO")}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Métricas en vivo */}
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+            <Metric label="Porcentaje de cumplimiento inicial (%)" value={pctInicial} />
+            <Metric label="Porcentaje de cumplimiento final (%)" value={pctFinal} />
+            <Metric label="Pulso de Seguridad (PS)" value={PS} />
+            <Metric label="Índice de Corrección (IC)" value={IC} />
+          </div>
+
+          {/* Notas */}
+          <div className="mt-6">
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Notas (opcional)
+            </label>
             <textarea
-              name="notas"
-              value={form.notas}
-              onChange={onChange}
-              rows={3}
+              className="h-28 w-full resize-y rounded-md border border-gray-300 px-3 py-2 focus:border-blue-500 focus:outline-none"
               placeholder="Observaciones breves…"
+              value={notas}
+              onChange={(e) => setNotas(e.target.value)}
             />
           </div>
-        </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-          <button type="submit" style={styles.btnPrimary}>
-            {editId ? "Guardar cambios" : "Agregar registro"}
-          </button>
-          <button type="button" onClick={limpiar} style={styles.btnGhost}>
-            Limpiar
-          </button>
-          <button type="button" onClick={exportarCSV} style={styles.btnCSV}>
-            Exportar CSV
-          </button>
-        </div>
-      </form>
+          {/* Botones */}
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <button
+              onClick={agregarRegistro}
+              className="rounded-lg bg-black px-4 py-2 text-white hover:bg-gray-800"
+            >
+              Agregar registro
+            </button>
+            <button
+              onClick={limpiar}
+              className="rounded-lg bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300"
+            >
+              Limpiar
+            </button>
+            <button
+              onClick={exportarCSV}
+              className="rounded-lg bg-emerald-700 px-4 py-2 text-white hover:bg-emerald-800"
+            >
+              Exportar CSV
+            </button>
+          </div>
+        </section>
 
-      {/* ===== BUSCADOR ===== */}
-      <div style={{ ...styles.card, marginTop: 16 }}>
-        <input
-          style={{ width: "100%", padding: 10, border: "1px solid #ddd", borderRadius: 8 }}
-          placeholder="Buscar por estudiante, conducta, categoría, intensidad o notas…"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-        />
-      </div>
-
-      {/* ===== LISTA ===== */}
-      <div style={{ ...styles.card, marginTop: 16, overflowX: "auto" }}>
-        {!filtrados.length ? (
-          <p style={{ color: "#777" }}>Sin registros (o sin coincidencias).</p>
-        ) : (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Estudiante</th>
-                <th>Categoría</th>
-                <th>Conducta</th>
-                <th>Intensidad</th>
-                <th>Notas</th>
-                <th style={{ width: 130 }}>Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtrados.map((r) => (
-                <tr key={r.id}>
-                  <td>{r.fecha.replace("T", " ")}</td>
-                  <td>{r.estudiante}</td>
-                  <td>{r.categoria}</td>
-                  <td>{r.conducta}</td>
-                  <td>{r.intensidad}</td>
-                  <td>{r.notas}</td>
-                  <td>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => onEdit(r)} style={styles.btnSmall}>
-                        Editar
-                      </button>
-                      <button onClick={() => onDelete(r.id)} style={styles.btnDanger}>
-                        Eliminar
-                      </button>
+        {/* Historial simple */}
+        <section className="mt-6 rounded-xl bg-white p-6 shadow">
+          <h3 className="mb-3 text-lg font-semibold text-gray-900">Registros guardados</h3>
+          {!registros.length ? (
+            <p className="text-gray-600">Aún no hay registros.</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {registros.map((r, i) => (
+                <li key={i} className="rounded-md border border-gray-200 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <strong>{r.empleado?.nombre || "Sin nombre"}</strong>{" "}
+                      <span className="text-gray-600">• {r.empleado?.area || "Área"}</span>
                     </div>
-                  </td>
-                </tr>
+                    <div className="text-gray-500">{new Date(r.createdAt).toLocaleString()}</div>
+                  </div>
+                  <div className="mt-1 text-gray-700">
+                    %Inicial: {r.metrics?.pctInicial ?? 0} • %Final: {r.metrics?.pctFinal ?? 0} • PS:{" "}
+                    {r.metrics?.PS ?? 0} • IC: {r.metrics?.IC ?? 0}
+                  </div>
+                  {r.notas ? <div className="mt-1 text-gray-600">Notas: {r.notas}</div> : null}
+                </li>
               ))}
-            </tbody>
-          </table>
-        )}
+            </ul>
+          )}
+        </section>
       </div>
     </div>
   );
 }
 
-/** =========================
- *  STYLES (inline)
- *  ========================= */
-const styles = {
-  wrap: {
-    maxWidth: 1100,
-    margin: "30px auto 80px",
-    padding: "0 16px",
-    fontFamily: "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial",
-  },
-  title: { fontSize: 28, margin: 0 },
-  card: {
-    background: "#fff",
-    border: "1px solid #eee",
-    borderRadius: 12,
-    padding: 16,
-    boxShadow: "0 1px 2px rgba(0,0,0,.03)",
-  },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 12,
-  },
-  field: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-  },
-  badgeOpt: {
-    display: "inline-flex",
-    alignItems: "center",
-    gap: 6,
-    border: "1px solid #ddd",
-    padding: "6px 10px",
-    borderRadius: 999,
-    cursor: "pointer",
-  },
-  btnPrimary: {
-    background: "#111827",
-    color: "#fff",
-    border: "1px solid #111827",
-    padding: "10px 14px",
-    borderRadius: 8,
-    cursor: "pointer",
-  },
-  btnGhost: {
-    background: "#fff",
-    color: "#111",
-    border: "1px solid #ddd",
-    padding: "10px 14px",
-    borderRadius: 8,
-    cursor: "pointer",
-  },
-  btnCSV: {
-    background: "#065f46",
-    color: "#fff",
-    border: "1px solid #065f46",
-    padding: "10px 14px",
-    borderRadius: 8,
-    cursor: "pointer",
-  },
-  btnSmall: {
-    background: "#2563eb",
-    color: "#fff",
-    border: "1px solid #2563eb",
-    padding: "6px 10px",
-    borderRadius: 6,
-    cursor: "pointer",
-    fontSize: 13,
-  },
-  btnDanger: {
-    background: "#b91c1c",
-    color: "#fff",
-    border: "1px solid #b91c1c",
-    padding: "6px 10px",
-    borderRadius: 6,
-    cursor: "pointer",
-    fontSize: 13,
-  },
-  table: {
-    width: "100%",
-    borderCollapse: "collapse",
-  },
-};
-
-// Estilos básicos para inputs/select/textarea
-const base = document.createElement("style");
-base.innerHTML = `
-  input[type="text"], input[type="datetime-local"], select, textarea {
-    border: 1px solid #ddd; border-radius: 8px; padding: 10px; outline: none; font-size: 14px;
-  }
-  input[type="text"]:focus, input[type="datetime-local"]:focus, select:focus, textarea:focus { border-color: #111827; }
-  table thead th { text-align: left; padding: 10px; background: #fafafa; border-bottom: 1px solid #eee; font-weight: 600; }
-  table tbody td { padding: 10px; border-bottom: 1px solid #f1f1f1; vertical-align: top; }
-`;
-document.head.appendChild(base);
+function Metric({ label, value }) {
+  return (
+    <div className="rounded-lg border border-gray-200 p-3">
+      <div className="text-xs font-medium uppercase tracking-wide text-gray-500">{label}</div>
+      <div className="text-2xl font-semibold text-gray-900">{value}</div>
+    </div>
+  );
+}
