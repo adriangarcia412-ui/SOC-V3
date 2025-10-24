@@ -132,3 +132,10 @@ button:hover {
   font-weight: normal;
   font-style: italic;
 }
+.header-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* centra el texto horizontalmente */
+  justify-content: center;
+  text-align: center;  /* asegura alineación centrada */
+}
