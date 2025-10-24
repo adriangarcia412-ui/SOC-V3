@@ -1,4 +1,4 @@
-import "./modern.css";           // <— IMPORTANTE: esta línea carga los estilos
+import "./modern.css";           
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
