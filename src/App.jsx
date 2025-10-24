@@ -10,7 +10,7 @@ function App() {
         <div className="header-text">
           <h1>SOC V3</h1>
           <h2>Sistema de Observación de Comportamientos</h2>
-          <h3>行为观察系统 (Xíngwéi guānchá xìtǒng)</h3>
+          <h3>行为观察系统</h3>
         </div>
       </header>
 
@@ -41,7 +41,7 @@ function App() {
         </section>
 
         <section className="evaluation-section">
-          <h2>Evaluación / 评估 (Pínggū)</h2>
+          <h2>Evaluación / 评估</h2>
           <table>
             <thead>
               <tr>
