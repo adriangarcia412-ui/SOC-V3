@@ -97,3 +97,38 @@ button:hover {
   color: #6b7280;
 }
 
+/* ==== Encabezado bilingüe y logo ==== */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #f5f7fa;
+  border-bottom: 2px solid #dbe3ec;
+  padding: 1rem;
+  gap: 1rem;
+}
+
+.logo {
+  height: 60px;
+  width: auto;
+}
+
+.header-text h1 {
+  color: #003366;
+  font-size: 1.8rem;
+  margin: 0;
+}
+
+.header-text h2 {
+  font-size: 1.1rem;
+  margin: 0;
+  color: #333;
+}
+
+.header-text h3 {
+  font-size: 1rem;
+  margin: 0;
+  color: #555;
+  font-weight: normal;
+  font-style: italic;
+}
