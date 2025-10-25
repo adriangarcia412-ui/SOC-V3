@@ -1,5 +1,5 @@
 // api/gsheet.js  (Vercel Serverless Function)
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxa2RX5cccnSBDihAeHLAbPJtvuPvnjY7zFR2NyHgDjaDHzgSqxezZIqFJhL_5nyd7TEg/exec'; // <-- tu URL .exec
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbw_nDszvVWB_wGzacJKVAtiLALeV8mCDuPNfRVWVxOC53vg9VIQ8LKSUv49riPECUcQ/exec'; // <-- tu URL .exec
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
