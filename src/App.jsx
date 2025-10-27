@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import "./modern.css";
 
 /* ========= CONFIG ========= */
-// URL de tu Apps Script (la última que confirmaste que funciona)
 const API_URL =
   "https://script.google.com/macros/s/AKfycbz2jHR--ztUyX-PE78lvjG4GXKbtdDJ5e3jJDgPtRaFcCDh258hu9slB4SAxgFkMPmIOg/exec";
 
@@ -31,7 +30,6 @@ function pctFromEval(array, which /* "inicial" | "final" */) {
   return Math.round((yes / total) * 100);
 }
 function toJSONSerie(array, which) {
-  // Devuelve arreglo como: [{i01:"SI"}, ...]
   return array.map((r, idx) => ({
     [`i${String(idx + 1).padStart(2, "0")}`]:
       r[which] === "SI" ? "SI" : r[which] === "NO" ? "NO" : "",
@@ -46,15 +44,12 @@ export default function App() {
     antiguedad: "",
     area: "",
     supervisor: "",
-    notas: "",
-    // matriz de evaluaciones
     evaluaciones: ITEMS.map(() => ({ inicial: "", final: "" })),
   }));
 
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null); // {type:"ok"|"error", text:"..."}
 
-  // % calculados
   const pctInicial = useMemo(
     () => pctFromEval(form.evaluaciones, "inicial"),
     [form.evaluaciones]
@@ -64,10 +59,9 @@ export default function App() {
     [form.evaluaciones]
   );
 
-  /* ====== Drafts localStorage ====== */
+  /* ====== Drafts (borradores) ====== */
   const DRAFT_KEY = "socv3_draft";
   useEffect(() => {
-    // auto-cargar borrador si existe
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
@@ -81,7 +75,6 @@ export default function App() {
         });
       }
     } catch (_) {}
-    // eslint-disable-next-line
   }, []);
 
   function saveDraft() {
@@ -113,7 +106,7 @@ export default function App() {
         const json = JSON.parse(reader.result);
         setForm(json);
         setMsg({ type: "ok", text: "Borrador importado correctamente." });
-      } catch (err) {
+      } catch {
         setMsg({ type: "error", text: "Archivo inválido." });
       }
     };
@@ -125,28 +118,25 @@ export default function App() {
     setForm((p) => ({ ...p, [k]: v }));
   }
 
+  // Validación por fila: en cada ítem, solo se permite INICIAL o FINAL.
   function selectRadio(idx, which /* "inicial"|"final" */, val /* "SI"|"NO" */) {
-    // Regla: en cada fila, solo se permite marcar INICIAL o FINAL, no ambos.
     setForm((p) => {
       const next = p.evaluaciones.map((row, i) => {
         if (i !== idx) return row;
         if (which === "inicial") {
-          return { inicial: val, final: "" }; // al marcar inicial, limpia final
+          return { inicial: val, final: "" };
         } else {
-          return { inicial: "", final: val }; // al marcar final, limpia inicial
+          return { inicial: "", final: val };
         }
       });
       return { ...p, evaluaciones: next };
     });
   }
 
-  /* ====== Validación simple previa al envío ====== */
   function validateBeforeSend() {
-    if (!form.nombre?.trim())
-      return "Falta 'Nombre del empleado'.";
+    if (!form.nombre?.trim()) return "Falta 'Nombre del empleado'.";
     if (!form.area?.trim()) return "Falta 'Área'.";
     if (!form.supervisor?.trim()) return "Falta 'Supervisor'.";
-    // Al menos una selección en toda la matriz
     const any =
       form.evaluaciones.some((r) => r.inicial) ||
       form.evaluaciones.some((r) => r.final);
@@ -154,7 +144,6 @@ export default function App() {
     return null;
   }
 
-  /* ====== Envío a Google Sheets (INICIAL -> FINAL) ====== */
   async function handleSend() {
     setMsg(null);
     const err = validateBeforeSend();
@@ -165,7 +154,6 @@ export default function App() {
     setSaving(true);
 
     try {
-      // 1) Enviar INICIAL si existe al menos una marca inicial
       const hasInicial = form.evaluaciones.some((r) => !!r.inicial);
       let regId = null;
 
@@ -177,7 +165,6 @@ export default function App() {
           antiguedad: form.antiguedad,
           area: form.area,
           supervisor: form.supervisor,
-          notas: form.notas || "",
           data_inicial_json: toJSONSerie(form.evaluaciones, "inicial"),
           pct_inicial: pctInicial,
         };
@@ -192,18 +179,16 @@ export default function App() {
         regId = b1.id;
       }
 
-      // 2) Enviar FINAL si existe alguna marca final
       const hasFinal = form.evaluaciones.some((r) => !!r.final);
       if (hasFinal) {
         const bodyFinal = {
-          id: regId || `REG-${crypto.randomUUID()}`, // si no hubo INICIAL, genera id
+          id: regId || `REG-${crypto.randomUUID()}`,
           fase: "FINAL",
           ts: nowISO(),
           nombre: form.nombre,
           antiguedad: form.antiguedad,
           area: form.area,
           supervisor: form.supervisor,
-          notas: form.notas || "",
           data_final_json: toJSONSerie(form.evaluaciones, "final"),
           pct_final: pctFinal,
         };
@@ -217,24 +202,18 @@ export default function App() {
         if (!b2.ok) throw new Error("Falló FINAL");
       }
 
-      setMsg({
-        type: "ok",
-        text: "¡Datos enviados a Google Sheets!",
-      });
-      // Limpia borrador para evitar duplicados posteriores
+      setMsg({ type: "ok", text: "¡Datos enviados a Google Sheets!" });
       localStorage.removeItem(DRAFT_KEY);
-    } catch (e) {
+    } catch {
       setMsg({
         type: "error",
-        text:
-          "No se pudo enviar. Revisa tu conexión o permisos del Apps Script.",
+        text: "No se pudo enviar. Revisa tu conexión o permisos del Apps Script.",
       });
     } finally {
       setSaving(false);
     }
   }
 
-  /* ====== UI ====== */
   return (
     <div className="container">
       {/* HEADER */}
@@ -292,14 +271,6 @@ export default function App() {
               placeholder="Supervisor"
             />
           </div>
-          <div className="emp-col">
-            <label>Notas / 备注:</label>
-            <input
-              value={form.notas}
-              onChange={(e) => setField("notas", e.target.value)}
-              placeholder="Notas relevantes (opcional)"
-            />
-          </div>
         </div>
 
         {/* Borradores */}
@@ -323,7 +294,7 @@ export default function App() {
       {/* EVALUACIÓN */}
       <section className="card">
         <p className="muted">
-          Marca solo <strong>una</strong> opción por columna (Inicial o Final) en cada fila.
+          Marca solo <strong>una</strong> columna por fila (Inicial o Final).
         </p>
 
         <div className="eval-wrapper">
@@ -342,7 +313,6 @@ export default function App() {
                 <tr key={idx}>
                   <td className="eval-item">{txt}</td>
 
-                  {/* Inicial Sí */}
                   <td className="eval-cell">
                     <input
                       type="radio"
@@ -351,8 +321,6 @@ export default function App() {
                       onChange={() => selectRadio(idx, "inicial", "SI")}
                     />
                   </td>
-
-                  {/* Inicial No */}
                   <td className="eval-cell">
                     <input
                       type="radio"
@@ -362,7 +330,6 @@ export default function App() {
                     />
                   </td>
 
-                  {/* Final Sí */}
                   <td className="eval-cell">
                     <input
                       type="radio"
@@ -371,8 +338,6 @@ export default function App() {
                       onChange={() => selectRadio(idx, "final", "SI")}
                     />
                   </td>
-
-                  {/* Final No */}
                   <td className="eval-cell">
                     <input
                       type="radio"
