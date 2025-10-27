@@ -1,77 +1,302 @@
-{/* === Evaluación === */}
-<h2>Evaluación / 评估</h2>
+// src/App.jsx
+import React, { useState } from "react";
+import "./modern.css";
 
-<table className="eval-table">
-  <thead>
-    <tr>
-      <th style={{minWidth: '320px'}}>Ítem / 项目</th>
-      <th>Inicial Sí / 初始是</th>
-      <th>Inicial No / 初始否</th>
-      <th>Final Sí / 最终是</th>
-      <th>Final No / 最终否</th>
-    </tr>
-  </thead>
-  <tbody>
-    {items.map((txt, idx) => (
-      <tr key={idx}>
-        <td className="eval-item">{txt}</td>
+function App() {
+  // ====== Estado del formulario ======
+  const [formData, setFormData] = useState({
+    fecha: "",
+    nombre: "",
+    antiguedad: "",
+    area: "",
+    supervisor: "",
+    // evaluaciones: arreglo de objetos { inicialSi, inicialNo, finalSi, finalNo }
+    evaluaciones: Array(13).fill({ inicialSi: "", inicialNo: "", finalSi: "", finalNo: "" }),
+    pctInicial: 0,
+    pctFinal: 0,
+    ps: "",
+    ic: "",
+  });
 
-        {/* Inicial Sí */}
-        <td className="eval-cell">
+  // ====== Ítems de evaluación (ES / ZH) ======
+  const items = [
+    "Usa herramientas adecuadas para la tarea / 使用适当的工具完成任务",
+    "Se usan los equipos de manera segura, sin improvisaciones / 安全使用设备，无即兴操作",
+    "Usa correctamente el EPP (colocado y ajustado) / 正确使用并佩戴好PPE防护装备",
+    "El área está limpia y libre de materiales fuera de lugar / 区域干净、无杂物",
+    "Realiza correctamente la manipulación de las cargas / 正确进行搬运操作",
+    "No presenta distracciones por celular durante la ejecución / 作业中无手机分心行为",
+    "Los equipos se encuentran en buen estado y funcionales / 设备状况良好、功能正常",
+    "Ejecuta sus actividades conforme a la instrucción de trabajo / 按作业指导执行工作",
+    "Levanta objetos con técnica correcta / 正确使用抬举技巧",
+    "Verifica el estado de sus herramientas / 工具设备点检完好",
+    "No introduce manos/herramientas en partes en movimiento / 禁止将手/工具伸入运动部位",
+    "No transporta cargas por encima de personas / 禁止越人搬运/吊装",
+    "Retira rebabas o virutas con herramienta, no con la mano / 使用工具清理毛刺，不用手清理",
+  ];
+
+  // ====== Handlers campos de texto ======
+  const onChangeText = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // ====== Handlers radio por fase/ítem ======
+  //  Agrupamos radios por name:
+  //    Inicial: name={`i${idx}-inicial`}  -> valores "SI" | "NO"
+  //    Final:   name={`i${idx}-final`}    -> valores "SI" | "NO"
+  const onChangeRadio = (idx, fase, valor) => {
+    setFormData((prev) => {
+      const next = [...prev.evaluaciones];
+      const actual = next[idx] || { inicialSi: "", inicialNo: "", finalSi: "", finalNo: "" };
+
+      if (fase === "inicial") {
+        // Si marca SI, limpiamos NO, y viceversa
+        if (valor === "SI") {
+          actual.inicialSi = "SI";
+          actual.inicialNo = "";
+        } else {
+          actual.inicialSi = "";
+          actual.inicialNo = "NO";
+        }
+      } else {
+        if (valor === "SI") {
+          actual.finalSi = "SI";
+          actual.finalNo = "";
+        } else {
+          actual.finalSi = "";
+          actual.finalNo = "NO";
+        }
+      }
+
+      next[idx] = actual;
+      return { ...prev, evaluaciones: next };
+    });
+  };
+
+  // ====== Cálculo de % (contamos “SI”) ======
+  const calcularPct = () => {
+    const total = items.length;
+    let iniSi = 0;
+    let finSi = 0;
+
+    formData.evaluaciones.forEach((ev) => {
+      if (ev && ev.inicialSi === "SI") iniSi += 1;
+      if (ev && ev.finalSi === "SI") finSi += 1;
+    });
+
+    const pctInicial = Math.round((iniSi / total) * 100) || 0;
+    const pctFinal = Math.round((finSi / total) * 100) || 0;
+
+    setFormData((prev) => ({ ...prev, pctInicial, pctFinal }));
+  };
+
+  // ====== Envío a Google Apps Script (proxy /api/gsheet) ======
+  const onSubmit = async (e) => {
+    e.preventDefault();
+    calcularPct();
+
+    try {
+      const payload = {
+        fase: "FINAL", // mandamos cierre con ambos cálculos
+        ts: new Date().toISOString(),
+        nombre: formData.nombre,
+        antiguedad: formData.antiguedad,
+        area: formData.area,
+        supervisor: formData.supervisor,
+        evaluaciones: formData.evaluaciones,
+        pct: formData.pctFinal,
+        ps: formData.ps,
+        ic: formData.ic,
+      };
+
+      const res = await fetch("/api/gsheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      console.log("Guardar:", data);
+      alert(data.ok ? "Registro guardado" : `Error: ${data.error || "desconocido"}`);
+    } catch (err) {
+      console.error(err);
+      alert("Error de red");
+    }
+  };
+
+  // === Render ===
+  return (
+    <div className="container">
+      <h1 className="title">SOC V3</h1>
+      <h2 className="subtitle">Sistema de Observación de Comportamientos</h2>
+
+      {/* ====== Información del empleado ====== */}
+      <h2>Información del empleado / 员工信息</h2>
+      <form onSubmit={onSubmit}>
+        <div className="grid">
           <input
-            type="radio"
-            name={`i${idx}-inicial`}             // <-- MISMO name para el par inicial (Sí/No)
-            checked={formData.evaluaciones[idx].inicialSi === 'SI'}
-            onChange={() => {
-              const next = [...formData.evaluaciones];
-              next[idx] = { ...next[idx], inicialSi: 'SI', inicialNo: 'NO' };
-              setFormData({ ...formData, evaluaciones: next });
-            }}
+            id="fecha"
+            name="fecha"
+            type="text"
+            placeholder="dd/mm/aaaa --:-- ----"
+            value={formData.fecha}
+            onChange={onChangeText}
           />
-        </td>
-
-        {/* Inicial No */}
-        <td className="eval-cell">
           <input
-            type="radio"
-            name={`i${idx}-inicial`}             // <-- comparte name con “Inicial Sí”
-            checked={formData.evaluaciones[idx].inicialNo === 'NO' && formData.evaluaciones[idx].inicialSi !== 'SI'}
-            onChange={() => {
-              const next = [...formData.evaluaciones];
-              next[idx] = { ...next[idx], inicialSi: '', inicialNo: 'NO' };
-              setFormData({ ...formData, evaluaciones: next });
-            }}
+            id="nombre"
+            name="nombre"
+            type="text"
+            placeholder="Nombre y apellido"
+            value={formData.nombre}
+            onChange={onChangeText}
           />
-        </td>
-
-        {/* Final Sí */}
-        <td className="eval-cell">
           <input
-            type="radio"
-            name={`i${idx}-final`}               // <-- MISMO name para el par final (Sí/No)
-            checked={formData.evaluaciones[idx].finalSi === 'SI'}
-            onChange={() => {
-              const next = [...formData.evaluaciones];
-              next[idx] = { ...next[idx], finalSi: 'SI', finalNo: 'NO' };
-              setFormData({ ...formData, evaluaciones: next });
-            }}
+            id="antiguedad"
+            name="antiguedad"
+            type="text"
+            placeholder="Ej. 2 años"
+            value={formData.antiguedad}
+            onChange={onChangeText}
           />
-        </td>
-
-        {/* Final No */}
-        <td className="eval-cell">
           <input
-            type="radio"
-            name={`i${idx}-final`}               // <-- comparte name con “Final Sí”
-            checked={formData.evaluaciones[idx].finalNo === 'NO' && formData.evaluaciones[idx].finalSi !== 'SI'}
-            onChange={() => {
-              const next = [...formData.evaluaciones];
-              next[idx] = { ...next[idx], finalSi: '', finalNo: 'NO' };
-              setFormData({ ...formData, evaluaciones: next });
-            }}
+            id="area"
+            name="area"
+            type="text"
+            placeholder="Área"
+            value={formData.area}
+            onChange={onChangeText}
           />
-        </td>
-      </tr>
-    ))}
-  </tbody>
-</table>
+          <input
+            id="supervisor"
+            name="supervisor"
+            type="text"
+            placeholder="Supervisor"
+            value={formData.supervisor}
+            onChange={onChangeText}
+          />
+        </div>
+
+        {/* ====== Evaluación (tabla con 4 columnas fijas) ====== */}
+        <h2>Evaluación / 评估</h2>
+        <table className="eval-table">
+          <thead>
+            <tr>
+              <th style={{ minWidth: "320px" }}>Ítem / 项目</th>
+              <th>Inicial Sí / 初始是</th>
+              <th>Inicial No / 初始否</th>
+              <th>Final Sí / 最终是</th>
+              <th>Final No / 最终否</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((txt, idx) => (
+              <tr key={idx}>
+                <td className="eval-item">{txt}</td>
+
+                {/* Inicial Sí */}
+                <td className="eval-cell">
+                  <label className="radio">
+                    <input
+                      type="radio"
+                      name={`i${idx}-inicial`}
+                      value="SI"
+                      checked={formData.evaluaciones[idx]?.inicialSi === "SI"}
+                      onChange={() => onChangeRadio(idx, "inicial", "SI")}
+                    />
+                    <span>Sí</span>
+                  </label>
+                </td>
+
+                {/* Inicial No */}
+                <td className="eval-cell">
+                  <label className="radio">
+                    <input
+                      type="radio"
+                      name={`i${idx}-inicial`}
+                      value="NO"
+                      checked={formData.evaluaciones[idx]?.inicialNo === "NO"}
+                      onChange={() => onChangeRadio(idx, "inicial", "NO")}
+                    />
+                    <span>No</span>
+                  </label>
+                </td>
+
+                {/* Final Sí */}
+                <td className="eval-cell">
+                  <label className="radio">
+                    <input
+                      type="radio"
+                      name={`i${idx}-final`}
+                      value="SI"
+                      checked={formData.evaluaciones[idx]?.finalSi === "SI"}
+                      onChange={() => onChangeRadio(idx, "final", "SI")}
+                    />
+                    <span>Sí</span>
+                  </label>
+                </td>
+
+                {/* Final No */}
+                <td className="eval-cell">
+                  <label className="radio">
+                    <input
+                      type="radio"
+                      name={`i${idx}-final`}
+                      value="NO"
+                      checked={formData.evaluaciones[idx]?.finalNo === "NO"}
+                      onChange={() => onChangeRadio(idx, "final", "NO")}
+                    />
+                    <span>No</span>
+                  </label>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {/* ====== Resumen ====== */}
+        <h3>Resumen de resultados / 结果汇总</h3>
+        <div className="summary">
+          <input
+            id="pct-inicial"
+            name="pctInicial"
+            type="number"
+            placeholder="Porcentaje de cumplimiento inicial (%)"
+            value={formData.pctInicial}
+            onChange={onChangeText}
+            onBlur={calcularPct}
+          />
+          <input
+            id="pct-final"
+            name="pctFinal"
+            type="number"
+            placeholder="Porcentaje de cumplimiento final (%)"
+            value={formData.pctFinal}
+            onChange={onChangeText}
+            onBlur={calcularPct}
+          />
+          <input
+            id="ps"
+            name="ps"
+            type="text"
+            placeholder="Pulso de Seguridad (PS)"
+            value={formData.ps}
+            onChange={onChangeText}
+          />
+          <input
+            id="ic"
+            name="ic"
+            type="text"
+            placeholder="Índice de Corrección (IC)"
+            value={formData.ic}
+            onChange={onChangeText}
+          />
+        </div>
+
+        <button type="submit" className="btn">Enviar</button>
+      </form>
+    </div>
+  );
+}
+
+export default App;
