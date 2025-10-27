@@ -1,11 +1,21 @@
-/* ===== Layout base ===== */
+/* ===== Base ===== */
 * { box-sizing: border-box; }
 body { font-family: system-ui, Arial, sans-serif; color: #12263A; margin: 0; }
 .container { max-width: 1100px; margin: 28px auto 80px; padding: 0 16px; }
 
-.title { margin: 0 0 4px; font-size: 32px; font-weight: 800; color: #0b3d91; }
-.subtitle { margin: 0; font-weight: 600; color: #345; }
-.subtitle-zh { margin: 6px 0 24px; color: #6b7280; }
+/* ===== Encabezado centrado con logo ===== */
+.brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 0 24px;
+  text-align: center;
+}
+.brand-logo { height: 54px; object-fit: contain; }
+.brand-title { margin: 6px 0 0; font-size: 36px; font-weight: 800; color: #0b3d91; }
+.brand-subtitle { margin: 0; font-weight: 600; color: #2a3a4a; }
+.brand-subtitle-zh { margin: 0; color: #6b7280; }
 
 /* ===== Formulario (una fila por campo) ===== */
 .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
@@ -21,7 +31,7 @@ input[type="datetime-local"] { max-width: 260px; }
   border-collapse: separate;
   border-spacing: 0;
   margin-top: 12px;
-  border: 1px solid #d9e7fb;          /* borde externo suave */
+  border: 1px solid #d9e7fb;
   border-radius: 10px;
   overflow: hidden;
   background: #fff;
@@ -36,14 +46,13 @@ input[type="datetime-local"] { max-width: 260px; }
   font-weight: 800;
 }
 
-/* líneas tenues azules por fila y separación vertical */
+/* Líneas tenues azules por fila + separadores verticales */
 .eval-table tbody td {
-  border-top: 1px solid #e6f0ff;      /* línea fina azul para cada fila */
-  border-right: 1px solid #eaf2ff;    /* separadores verticales suaves */
+  border-top: 1px solid #e6f0ff;
+  border-right: 1px solid #eaf2ff;
   padding: 12px 10px;
   vertical-align: middle;
 }
-
 .eval-table tbody tr:nth-child(odd) { background: #fbfdff; }
 .eval-table tbody tr:hover { background: #f2f7ff; }
 
@@ -52,11 +61,17 @@ input[type="datetime-local"] { max-width: 260px; }
 .eval-cell input[type="radio"] { transform: scale(1.2); cursor: pointer; }
 
 /* ===== Resumen ===== */
-.summary { display: grid; grid-template-columns: repeat(2, minmax(220px, 1fr)); gap: 10px; margin: 14px 0 18px; }
+.summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px;
+  margin: 14px 0 18px;
+}
 .summary input {
   padding: 8px 10px; border: 1px solid #ccdff5; border-radius: 6px;
 }
 
+/* ===== Botón ===== */
 .btn {
   background: #0b63f6; color: #fff; border: 0; border-radius: 8px;
   padding: 10px 18px; font-weight: 700; cursor: pointer;
