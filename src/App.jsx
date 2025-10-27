@@ -1,343 +1,304 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./modern.css";
 
-/* ========= Config ========= */
-const DRAFT_KEY = "socv3/draft/v1";
+/**
+ * SOC V3 - App.jsx
+ * - Rediseño del bloque "Información del empleado": grid 2 columnas, 1 en móviles
+ * - Inputs con id/label claros y selector de fecha/hora (datetime-local)
+ * - Mantiene evaluaciones, borradores y envío
+ */
 
-/* ========= Ítems ========= */
-const ITEMS = [
+// ========= CONFIG =========
+const GAS_URL =
+  "https://script.google.com/macros/s/AKfycbz2jHR--ztUyX-PE78lvjG4GXKbtdDJ5e3jJDgPtRaFcCDh258hu9slB4SAxgFkMPmIOg/exec";
+
+// Ítems (es-zh)
+const items = [
   "Usa herramientas adecuadas para la tarea / 使用适当的工具完成任务",
   "Se usan los equipos de manera segura, sin improvisaciones / 安全使用设备，无即兴操作",
   "Usa correctamente el EPP (colocado y ajustado) / 正确使用并佩戴好PPE防护装备",
-  "El área está limpia y libre de materiales fuera de lugar / 区域干净、无杂物",
+  "El área está limpia y libre de materiales fuera de lugar / 区域干净、 无杂物",
   "Realiza correctamente la manipulación de las cargas / 正确进行搬运操作",
   "No presenta distracciones por celular durante la ejecución / 作业中无手机分心行为",
-  "Los equipos se encuentran en buen estado y funcionales / 设备状况良好、功能正常",
+  "Los equipos se encuentran en buen estado y funcionales / 设备状况良好、 功能正常",
   "Ejecuta sus actividades conforme a la instrucción de trabajo / 按作业指导执行工作",
   "Levanta objetos con técnica correcta / 正确使用抬举技巧",
-  "Verifica el estado de sus herramientas / 工具设备点检完好"
+  "Verifica el estado de sus herramientas / 工具设备点检完好",
 ];
 
-const nuevaEvaluacion = () =>
-  ITEMS.map(() => ({
-    inicial: "", // "SI" | "NO" | ""
-    final: ""    // "SI" | "NO" | ""
-  }));
-
-const calcularPct = (arr, campo) => {
-  const total = arr.length;
-  if (!total) return 0;
-  const si = arr.filter((e) => e[campo] === "SI").length;
-  return Math.round((si / total) * 100);
-};
-
-const nowIso = () => new Date().toISOString();
-
-/* ========= App ========= */
+// ========= APP =========
 export default function App() {
+  // --------- Estado principal
   const [formData, setFormData] = useState({
-    fecha: "",
+    fecha: "",        // datetime-local ISO (YYYY-MM-DDTHH:mm)
     nombre: "",
     antiguedad: "",
     area: "",
     supervisor: "",
-    evaluaciones: nuevaEvaluacion()
+    evaluaciones: Array(items.length).fill({
+      inicialSi: "",
+      inicialNo: "",
+      finalSi: "",
+      finalNo: "",
+    }),
+    pctInicial: 0,
+    pctFinal: 0,
   });
 
-  const [loading, setLoading] = useState(false);
-  const [errors, setErrors] = useState({});
-  const [okMsg, setOkMsg] = useState("");
-  const [errMsg, setErrMsg] = useState("");
-  const [draftInfo, setDraftInfo] = useState(null); // {savedAt: ISO}
+  // Banner de borrador
+  const [draftInfo, setDraftInfo] = useState(null);
+  // Mensajes
+  const [msgOk, setMsgOk] = useState("");
+  const [msgError, setMsgError] = useState("");
+  // Envío
+  const [sending, setSending] = useState(false);
 
-  const pctInicial = useMemo(
-    () => calcularPct(formData.evaluaciones, "inicial"),
-    [formData.evaluaciones]
-  );
-  const pctFinal = useMemo(
-    () => calcularPct(formData.evaluaciones, "final"),
-    [formData.evaluaciones]
-  );
+  // --------- Cálculo de % en memoria
+  useEffect(() => {
+    const tot = items.length;
+    const iniOk = formData.evaluaciones.filter((e) => e.inicialSi === "SI").length;
+    const finOk = formData.evaluaciones.filter((e) => e.finalSi === "SI").length;
+    const pctInicial = Math.round((iniOk / tot) * 100);
+    const pctFinal = Math.round((finOk / tot) * 100);
+    setFormData((p) => ({ ...p, pctInicial, pctFinal }));
+  }, [formData.evaluaciones]);
 
-  /* ====== Change handlers ====== */
-  const handleField = (k) => (e) => {
-    setFormData((s) => ({ ...s, [k]: e.target.value }));
-  };
-  const handleRadio = (idx, columna, valor) => {
-    setFormData((s) => {
-      const evals = s.evaluaciones.slice();
-      evals[idx] = { ...evals[idx], [columna]: valor };
-      return { ...s, evaluaciones: evals };
+  // --------- Manejo de radios (una opción por columna y fila)
+  const setRadio = (idx, columna, valor) => {
+    setFormData((prev) => {
+      const nuevo = [...prev.evaluaciones];
+      const fila = { ...nuevo[idx], [columna]: valor };
+
+      // Reglas: en "inicial" sólo una (Si/No); en "final" sólo una (Si/No).
+      if (columna === "inicialSi" && valor === "SI") fila.inicialNo = "";
+      if (columna === "inicialNo" && valor === "NO") fila.inicialSi = "";
+      if (columna === "finalSi" && valor === "SI") fila.finalNo = "";
+      if (columna === "finalNo" && valor === "NO") fila.finalSi = "";
+
+      nuevo[idx] = fila;
+      return { ...prev, evaluaciones: nuevo };
     });
   };
 
-  /* ====== Validación mínima ====== */
-  const validar = () => {
-    const e = {};
-    if (!formData.fecha) e.fecha = "Requerido";
-    if (!formData.nombre) e.nombre = "Requerido";
-    if (!formData.antiguedad) e.antiguedad = "Requerido";
-    if (!formData.area) e.area = "Requerido";
-    if (!formData.supervisor) e.supervisor = "Requerido";
-    setErrors(e);
-    return Object.keys(e).length === 0;
-  };
-
-  /* ====== Borradores (localStorage) ====== */
-
-  // Cargar borrador (si existe) al abrir
-  useEffect(() => {
+  // --------- Borradores
+  const saveDraft = () => {
     try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (raw) {
-        const draft = JSON.parse(raw);
-        if (draft?.data) {
-          setFormData(draft.data);
-          setDraftInfo({ savedAt: draft.savedAt });
-        }
-      }
-    } catch {}
-  }, []);
-
-  // Autoguardar con debounce
-  const saveTimer = useRef(null);
-  useEffect(() => {
-    // No guardes mientras está enviando
-    if (loading) return;
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      try {
-        const bundle = { data: formData, savedAt: nowIso() };
-        localStorage.setItem(DRAFT_KEY, JSON.stringify(bundle));
-        setDraftInfo({ savedAt: bundle.savedAt });
-      } catch {}
-    }, 800);
-    return () => clearTimeout(saveTimer.current);
-  }, [formData, loading]);
-
-  const guardarBorradorManual = () => {
-    try {
-      const bundle = { data: formData, savedAt: nowIso() };
-      localStorage.setItem(DRAFT_KEY, JSON.stringify(bundle));
-      setDraftInfo({ savedAt: bundle.savedAt });
-      setOkMsg("Borrador guardado localmente.");
-      setTimeout(() => setOkMsg(""), 2000);
-    } catch {
-      setErrMsg("No se pudo guardar el borrador en este navegador.");
+      localStorage.setItem("soc_v3_draft", JSON.stringify(formData));
+      const ts = new Date().toLocaleString();
+      setDraftInfo(`Borrador guardado el ${ts}.`);
+      setMsgOk("Borrador guardado.");
+      setMsgError("");
+    } catch (e) {
+      setMsgError("No se pudo guardar el borrador.");
     }
   };
-
-  const borrarBorrador = () => {
-    localStorage.removeItem(DRAFT_KEY);
+  const clearDraft = () => {
+    localStorage.removeItem("soc_v3_draft");
     setDraftInfo(null);
-    setOkMsg("Borrador eliminado.");
-    setTimeout(() => setOkMsg(""), 2000);
+    setMsgOk("Borrador limpiado.");
+    setMsgError("");
   };
+  const loadDraftIfExists = () => {
+    try {
+      const raw = localStorage.getItem("soc_v3_draft");
+      if (raw) {
+        const data = JSON.parse(raw);
+        setFormData(data);
+        const ts = new Date().toLocaleString();
+        setDraftInfo(`Borrador cargado — guardado el ${ts}.`);
+      }
+    } catch {
+      // ignore
+    }
+  };
+  useEffect(loadDraftIfExists, []);
 
-  const descargarBorrador = () => {
+  const exportDraft = () => {
+    const blob = new Blob([JSON.stringify(formData, null, 2)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const payload = JSON.stringify({ data: formData, savedAt: nowIso() }, null, 2);
-    const blob = new Blob([payload], { type: "application/json" });
-    a.href = URL.createObjectURL(blob);
-    a.download = "SOCV3-borrador.json";
+    a.href = url;
+    a.download = "SOC_V3_borrador.json";
     a.click();
-    URL.revokeObjectURL(a.href);
+    URL.revokeObjectURL(url);
   };
-
-  const cargarBorradorArchivo = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const importDraft = (file) => {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const json = JSON.parse(String(reader.result || "{}"));
-        if (json?.data) {
-          setFormData(json.data);
-          setDraftInfo({ savedAt: json.savedAt || nowIso() });
-          setOkMsg("Borrador importado.");
-          setTimeout(() => setOkMsg(""), 2000);
-        } else {
-          setErrMsg("Archivo inválido.");
-        }
+        const data = JSON.parse(reader.result);
+        setFormData(data);
+        setMsgOk("Borrador importado.");
+        setMsgError("");
       } catch {
-        setErrMsg("Archivo inválido.");
+        setMsgError("Archivo inválido.");
       }
     };
     reader.readAsText(file);
-    e.target.value = "";
   };
 
-  /* ====== Submit ====== */
-  const onSubmit = async (ev) => {
-    ev.preventDefault();
-    setOkMsg("");
-    setErrMsg("");
-
-    if (!validar()) {
-      setErrMsg("Por favor, completa los campos obligatorios.");
-      return;
-    }
-
-    setLoading(true);
+  // --------- Envío
+  const submitForm = async () => {
     try {
-      const payload = {
-        fase: "FINAL",
-        ts: new Date().toISOString(),
-        nombre: formData.nombre,
-        antiguedad: formData.antiguedad,
-        area: formData.area,
-        supervisor: formData.supervisor,
-        fecha_local: formData.fecha,
-        evaluaciones: formData.evaluaciones,
-        pct_inicial: pctInicial,
-        pct_final: pctFinal
-      };
+      setSending(true);
+      setMsgOk("");
+      setMsgError("");
 
-      const res = await fetch("/api/gsheet", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data?.ok === false) {
-        throw new Error(data?.error || "No se pudo guardar en la hoja.");
+      // Validación mínima
+      if (!formData.fecha || !formData.nombre) {
+        setMsgError("Fecha y nombre son obligatorios.");
+        setSending(false);
+        return;
       }
 
-      // limpiar formulario y borrador
-      setFormData((s) => ({
-        ...s,
-        evaluaciones: nuevaEvaluacion()
-      }));
-      localStorage.removeItem(DRAFT_KEY);
-      setDraftInfo(null);
+      const payload = {
+        fase: "FINAL", // o "INICIAL" si deseas manejar fases
+        ts: new Date().toISOString(),
+        empleado: {
+          fecha: formData.fecha,
+          nombre: formData.nombre,
+          antiguedad: formData.antiguedad,
+          area: formData.area,
+          supervisor: formData.supervisor,
+        },
+        evaluaciones: formData.evaluaciones,
+        pctInicial: formData.pctInicial,
+        pctFinal: formData.pctFinal,
+      };
 
-      setOkMsg("¡Registro guardado correctamente!");
-    } catch (err) {
-      setErrMsg(String(err.message || err));
-    } finally {
-      setLoading(false);
-      // limpiar mensajes después de un tiempo
-      setTimeout(() => {
-        setOkMsg("");
-        setErrMsg("");
-      }, 3000);
+      const res = await fetch(GAS_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const r = await res.text();
+      setMsgOk("Envío realizado correctamente.");
+      setSending(false);
+    } catch (e) {
+      setMsgError("No se pudo enviar. Verifica la conexión.");
+      setSending(false);
     }
   };
 
-  /* ====== UI ====== */
+  // --------- Render
   return (
     <div className="container">
+      {/* Encabezado */}
       <header className="app-header">
-        <img src="/hengli-logo.png" alt="Hengli" className="logo" />
-        <h1>SOC V3</h1>
-        <h2>Sistema de Observación de Comportamientos</h2>
-        <p className="cn-sub">行为观察系统</p>
+        <img className="app-logo" src="/logo-hengli.png" alt="Hengli" />
+        <h1 className="app-title">SOC V3</h1>
+        <h2 className="app-subtitle">Sistema de Observación de Comportamientos</h2>
+        <p className="app-subtitle-cn">行为观察系统</p>
       </header>
 
-      <form className="form" onSubmit={onSubmit}>
-        <section className="employee">
-          <h3>Información del empleado / 员工信息</h3>
+      {/* Banner borrador si existe */}
+      {draftInfo && <div className="draft-banner">{draftInfo}</div>}
 
-          {draftInfo && (
-            <div className="draft-banner">
-              Borrador cargado — guardado el{" "}
-              {new Date(draftInfo.savedAt).toLocaleString()}
-            </div>
-          )}
+      {/* ============ INFORMACIÓN DEL EMPLEADO ============ */}
+      <section className="card">
+        <h2>Información del empleado / 员工信息</h2>
 
-          <div className="grid-5">
-            <div className="field">
-              <label>Fecha y hora / 日期和时间:</label>
-              <input
-                type="datetime-local"
-                value={formData.fecha}
-                onChange={handleField("fecha")}
-                className={errors.fecha ? "invalid" : ""}
-              />
-              {errors.fecha && <small className="err">{errors.fecha}</small>}
-            </div>
-
-            <div className="field">
-              <label>Nombre del empleado / 员工姓名:</label>
-              <input
-                type="text"
-                placeholder="Nombre y apellido"
-                value={formData.nombre}
-                onChange={handleField("nombre")}
-                className={errors.nombre ? "invalid" : ""}
-              />
-              {errors.nombre && <small className="err">{errors.nombre}</small>}
-            </div>
-
-            <div className="field">
-              <label>Antigüedad / 工龄:</label>
-              <input
-                type="text"
-                placeholder="Ej. 2 años"
-                value={formData.antiguedad}
-                onChange={handleField("antiguedad")}
-                className={errors.antiguedad ? "invalid" : ""}
-              />
-              {errors.antiguedad && (
-                <small className="err">{errors.antiguedad}</small>
-              )}
-            </div>
-
-            <div className="field">
-              <label>Área / 区域:</label>
-              <input
-                type="text"
-                placeholder="Área"
-                value={formData.area}
-                onChange={handleField("area")}
-                className={errors.area ? "invalid" : ""}
-              />
-              {errors.area && <small className="err">{errors.area}</small>}
-            </div>
-
-            <div className="field">
-              <label>Supervisor / 主管:</label>
-              <input
-                type="text"
-                placeholder="Supervisor"
-                value={formData.supervisor}
-                onChange={handleField("supervisor")}
-                className={errors.supervisor ? "invalid" : ""}
-              />
-              {errors.supervisor && (
-                <small className="err">{errors.supervisor}</small>
-              )}
-            </div>
+        <div className="emp-grid">
+          {/* Fecha y hora */}
+          <div className="emp-col">
+            <label htmlFor="fecha">Fecha y hora / 日期和时间:</label>
+            <input
+              id="fecha"
+              type="datetime-local"
+              value={formData.fecha}
+              onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+              placeholder="YYYY-MM-DD HH:mm"
+            />
           </div>
 
-          <div className="draft-actions">
-            <button type="button" onClick={guardarBorradorManual}>
-              Guardar borrador
-            </button>
-            <button type="button" onClick={borrarBorrador}>
-              Borrar borrador
-            </button>
-            <button type="button" onClick={descargarBorrador}>
-              Exportar borrador (.json)
-            </button>
-            <label className="btn-file">
-              Importar borrador (.json)
-              <input type="file" accept="application/json" onChange={cargarBorradorArchivo} />
-            </label>
+          {/* Nombre */}
+          <div className="emp-col">
+            <label htmlFor="nombre">Nombre del empleado / 员工姓名:</label>
+            <input
+              id="nombre"
+              type="text"
+              value={formData.nombre}
+              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
+              placeholder="Nombre y apellido"
+            />
           </div>
-        </section>
 
-        <section className="eval">
-          <h3>Evaluación / 评估</h3>
-          <p className="help">
-            Marca solo <b>una</b> opción por columna (Inicial o Final) en cada fila.
-          </p>
+          {/* Antigüedad */}
+          <div className="emp-col">
+            <label htmlFor="antiguedad">Antigüedad / 工龄:</label>
+            <input
+              id="antiguedad"
+              type="text"
+              value={formData.antiguedad}
+              onChange={(e) => setFormData({ ...formData, antiguedad: e.target.value })}
+              placeholder="Ej. 2 años"
+            />
+          </div>
 
+          {/* Área */}
+          <div className="emp-col">
+            <label htmlFor="area">Área / 区域:</label>
+            <input
+              id="area"
+              type="text"
+              value={formData.area}
+              onChange={(e) => setFormData({ ...formData, area: e.target.value })}
+              placeholder="Área"
+            />
+          </div>
+
+          {/* Supervisor */}
+          <div className="emp-col">
+            <label htmlFor="supervisor">Supervisor / 主管:</label>
+            <input
+              id="supervisor"
+              type="text"
+              value={formData.supervisor}
+              onChange={(e) => setFormData({ ...formData, supervisor: e.target.value })}
+              placeholder="Supervisor"
+            />
+          </div>
+        </div>
+
+        {/* Acciones de borrador */}
+        <div className="actions">
+          <button type="button" className="btn secondary" onClick={saveDraft}>
+            Guardar borrador
+          </button>
+          <button type="button" className="btn secondary" onClick={clearDraft}>
+            Borrar borrador
+          </button>
+
+          <button type="button" className="btn secondary" onClick={exportDraft}>
+            Exportar borrador (.json)
+          </button>
+
+          <label className="btn secondary btn-file">
+            Importar borrador (.json)
+            <input
+              type="file"
+              accept="application/json"
+              onChange={(e) => {
+                if (e.target.files?.[0]) importDraft(e.target.files[0]);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+      </section>
+
+      {/* ============ EVALUACIÓN ============ */}
+      <section className="card">
+        <h2>Evaluación / 评估</h2>
+        <p className="muted">Marca solo <b>una</b> opción por columna (Inicial o Final) en cada fila.</p>
+
+        <div className="eval-wrapper">
           <table className="eval-table">
             <thead>
               <tr>
-                <th style={{ minWidth: "320px" }}>Ítem / 项目</th>
+                <th>Ítem / 项目</th>
                 <th>Inicial Sí / 初始是</th>
                 <th>Inicial No / 初始否</th>
                 <th>Final Sí / 最终是</th>
@@ -345,67 +306,78 @@ export default function App() {
               </tr>
             </thead>
             <tbody>
-              {ITEMS.map((txt, idx) => (
+              {items.map((txt, idx) => (
                 <tr key={idx}>
                   <td className="eval-item">{txt}</td>
+
+                  {/* Inicial Sí */}
                   <td className="eval-cell">
                     <input
                       type="radio"
-                      name={`i${idx}-inicial`}
-                      checked={formData.evaluaciones[idx].inicial === "SI"}
-                      onChange={() => handleRadio(idx, "inicial", "SI")}
+                      name={`ini-${idx}`}
+                      checked={formData.evaluaciones[idx]?.inicialSi === "SI"}
+                      onChange={() => setRadio(idx, "inicialSi", "SI")}
                     />
                   </td>
+
+                  {/* Inicial No */}
                   <td className="eval-cell">
                     <input
                       type="radio"
-                      name={`i${idx}-inicial`}
-                      checked={formData.evaluaciones[idx].inicial === "NO"}
-                      onChange={() => handleRadio(idx, "inicial", "NO")}
+                      name={`ini-${idx}`}
+                      checked={formData.evaluaciones[idx]?.inicialNo === "NO"}
+                      onChange={() => setRadio(idx, "inicialNo", "NO")}
                     />
                   </td>
+
+                  {/* Final Sí */}
                   <td className="eval-cell">
                     <input
                       type="radio"
-                      name={`i${idx}-final`}
-                      checked={formData.evaluaciones[idx].final === "SI"}
-                      onChange={() => handleRadio(idx, "final", "SI")}
+                      name={`fin-${idx}`}
+                      checked={formData.evaluaciones[idx]?.finalSi === "SI"}
+                      onChange={() => setRadio(idx, "finalSi", "SI")}
                     />
                   </td>
+
+                  {/* Final No */}
                   <td className="eval-cell">
                     <input
                       type="radio"
-                      name={`i${idx}-final`}
-                      checked={formData.evaluaciones[idx].final === "NO"}
-                      onChange={() => handleRadio(idx, "final", "NO")}
+                      name={`fin-${idx}`}
+                      checked={formData.evaluaciones[idx]?.finalNo === "NO"}
+                      onChange={() => setRadio(idx, "finalNo", "NO")}
                     />
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
 
-          <div className="summary">
-            <div className="sum-field">
-              <label>Porcentaje de cumplimiento inicial (%):</label>
-              <input value={pctInicial} readOnly />
-            </div>
-            <div className="sum-field">
-              <label>Porcentaje de cumplimiento final (%):</label>
-              <input value={pctFinal} readOnly />
-            </div>
+        {/* Resumen */}
+        <div className="resume-grid">
+          <div>
+            <label>Porcentaje de cumplimiento inicial (%):</label>
+            <input value={formData.pctInicial} readOnly />
           </div>
-        </section>
+          <div>
+            <label>Porcentaje de cumplimiento final (%):</label>
+            <input value={formData.pctFinal} readOnly />
+          </div>
+        </div>
 
-        {okMsg && <div className="ok">{okMsg}</div>}
-        {errMsg && <div className="error">{errMsg}</div>}
-
+        {/* Envío */}
         <div className="actions">
-          <button type="submit" disabled={loading}>
-            {loading ? "Enviando..." : "Enviar"}
+          <button className="btn" onClick={submitForm} disabled={sending}>
+            {sending ? "Enviando..." : "Enviar"}
           </button>
         </div>
-      </form>
+
+        {msgOk && <div className="ok">{msgOk}</div>}
+        {msgError && <div className="error">{msgError}</div>}
+      </section>
     </div>
   );
 }
+
