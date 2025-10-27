@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import "./modern.css";
 
 function App() {
-  // Lista de ítems (13)
+  // ===== ÍTEMS (13) =====
   const items = [
     "Usa herramientas adecuadas para la tarea / 使用适当的工具完成任务",
     "Se usan los equipos de manera segura, sin improvisaciones / 安全使用设备，无即兴操作",
@@ -19,12 +19,12 @@ function App() {
     "Retira rebabas o virutas con herramienta, no con la mano / 使用工具清理毛刺，不用手清理",
   ];
 
-  // ✅ Crea objetos independientes por fila
+  // ===== Estado inicial seguro (objetos independientes por fila) =====
   const makeEval = () => ({ inicialSi: "", inicialNo: "", finalSi: "", finalNo: "" });
   const initialEvals = Array.from({ length: items.length }, makeEval);
 
   const [formData, setFormData] = useState({
-    fecha: "",         // ISO local compatible con datetime-local
+    fecha: "",
     nombre: "",
     antiguedad: "",
     area: "",
@@ -36,6 +36,7 @@ function App() {
     ic: "",
   });
 
+  // ===== Handlers =====
   const onChangeText = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -43,47 +44,31 @@ function App() {
 
   const onChangeRadio = (idx, fase, valor) => {
     setFormData((prev) => {
-      const next = prev.evaluaciones.map((ev, i) =>
-        i === idx ? { ...ev } : ev
-      );
-      const actual = next[idx];
-
+      const next = prev.evaluaciones.map((ev, i) => (i === idx ? { ...ev } : ev));
+      const fila = next[idx];
       if (fase === "inicial") {
-        if (valor === "SI") {
-          actual.inicialSi = "SI";
-          actual.inicialNo = "";
-        } else {
-          actual.inicialSi = "";
-          actual.inicialNo = "NO";
-        }
+        if (valor === "SI") { fila.inicialSi = "SI"; fila.inicialNo = ""; }
+        else               { fila.inicialSi = "";   fila.inicialNo = "NO"; }
       } else {
-        if (valor === "SI") {
-          actual.finalSi = "SI";
-          actual.finalNo = "";
-        } else {
-          actual.finalSi = "";
-          actual.finalNo = "NO";
-        }
+        if (valor === "SI") { fila.finalSi = "SI";   fila.finalNo = ""; }
+        else               { fila.finalSi = "";     fila.finalNo = "NO"; }
       }
-
       return { ...prev, evaluaciones: next };
     });
   };
 
   const calcularPct = () => {
-    const total = items.length;
-    let iniSi = 0;
-    let finSi = 0;
-
+    const total = items.length || 1;
+    let iniSi = 0, finSi = 0;
     formData.evaluaciones.forEach((ev) => {
       if (ev.inicialSi === "SI") iniSi++;
-      if (ev.finalSi === "SI") finSi++;
+      if (ev.finalSi === "SI")   finSi++;
     });
-
-    const pctInicial = Math.round((iniSi / total) * 100) || 0;
-    const pctFinal = Math.round((finSi / total) * 100) || 0;
-
-    setFormData((prev) => ({ ...prev, pctInicial, pctFinal }));
+    setFormData((p) => ({
+      ...p,
+      pctInicial: Math.round((iniSi / total) * 100),
+      pctFinal: Math.round((finSi / total) * 100),
+    }));
   };
 
   const onSubmit = async (e) => {
@@ -109,7 +94,6 @@ function App() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
-
       const data = await res.json();
       alert(data.ok ? "Registro guardado" : `Error: ${data.error || "desconocido"}`);
     } catch (err) {
@@ -120,16 +104,21 @@ function App() {
 
   return (
     <div className="container">
-      <h1 className="title">SOC V3</h1>
-      <h2 className="subtitle">Sistema de Observación de Comportamientos</h2>
-      <h3 className="subtitle-zh">行为观察系统</h3>
+      {/* ===== Encabezado centrado con logo ===== */}
+      <header className="brand">
+        {/* Coloca el archivo del logo en /public (por ejemplo /hengli-logo.png) */}
+        <img src="/hengli-logo.png" alt="Hengli" className="brand-logo" />
+        <h1 className="brand-title">SOC V3</h1>
+        <p className="brand-subtitle">Sistema de Observación de Comportamientos</p>
+        <p className="brand-subtitle-zh">行为观察系统</p>
+      </header>
 
+      {/* ===== Información del empleado ===== */}
       <h2>Información del empleado / 员工信息</h2>
 
-      {/* ✅ Una fila por campo, con label y calendario nativo */}
       <form onSubmit={onSubmit}>
         <div className="form-group">
-          <label htmlFor="fecha">Fecha y hora / 日期和时间:</label>
+          <label htmlFor="fecha">Fecha y hora / 日期和时间</label>
           <input
             id="fecha"
             name="fecha"
@@ -140,7 +129,7 @@ function App() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="nombre">Nombre del empleado / 员工姓名:</label>
+          <label htmlFor="nombre">Nombre del empleado / 员工姓名</label>
           <input
             id="nombre"
             name="nombre"
@@ -152,7 +141,7 @@ function App() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="antiguedad">Antigüedad / 工龄:</label>
+          <label htmlFor="antiguedad">Antigüedad / 工龄</label>
           <input
             id="antiguedad"
             name="antiguedad"
@@ -164,7 +153,7 @@ function App() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="area">Área / 区域:</label>
+          <label htmlFor="area">Área / 区域</label>
           <input
             id="area"
             name="area"
@@ -176,7 +165,7 @@ function App() {
         </div>
 
         <div className="form-group">
-          <label htmlFor="supervisor">Supervisor / 主管:</label>
+          <label htmlFor="supervisor">Supervisor / 主管</label>
           <input
             id="supervisor"
             name="supervisor"
@@ -187,6 +176,7 @@ function App() {
           />
         </div>
 
+        {/* ===== Evaluación ===== */}
         <h2>Evaluación / 评估</h2>
 
         <table className="eval-table">
@@ -248,6 +238,7 @@ function App() {
           </tbody>
         </table>
 
+        {/* ===== Resumen ===== */}
         <h3>Resumen de resultados / 结果汇总</h3>
         <div className="summary">
           <input
