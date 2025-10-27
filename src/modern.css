@@ -1,6 +1,6 @@
 /* =============================
-   SOC V3 - Hoja de Estilos
-   (reemplazar COMPLETO)
+   SOC V3 - Estilos actualizados
+   Ajuste de anchos de columnas
    ============================= */
 
 /* ====== Base ====== */
@@ -8,14 +8,8 @@ html, body {
   margin: 0;
   padding: 0;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-  background: #ffffff;         /* Fondo BLANCO para que se vean las líneas */
+  background: #ffffff;
   color: #0f172a;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
 }
 
 /* ====== Contenedor ====== */
@@ -25,7 +19,7 @@ html, body {
   padding: 0 16px;
 }
 
-/* ====== Header con logo centrado ====== */
+/* ====== Header ====== */
 .app-header {
   display: flex;
   flex-direction: column;
@@ -44,15 +38,13 @@ html, body {
   font-size: 34px;
   line-height: 1.1;
   text-align: center;
-  color: #0b3b7a;           /* azul Hengli */
+  color: #0b3b7a;
   font-weight: 800;
-  letter-spacing: 0.5px;
 }
 
 .app-subtitle {
   margin: 0;
   font-size: 20px;
-  line-height: 1.25;
   text-align: center;
   color: #2b3a52;
   font-weight: 700;
@@ -66,44 +58,7 @@ html, body {
   font-weight: 600;
 }
 
-/* ====== Bloques / Títulos ====== */
-.block-title {
-  margin: 24px 0 12px;
-  font-size: 26px;
-  font-weight: 800;
-  color: #111827;
-}
-
-.block-subhint {
-  margin: 4px 0 12px;
-  color: #334155;
-  font-weight: 600;
-}
-
-/* ====== Formulario Empleado ====== */
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 10px;
-}
-
-.input {
-  width: 100%;
-  padding: 10px 12px;
-  border: 1px solid #cbd5e1;
-  border-radius: 6px;
-  font-size: 16px;
-  background: #ffffff;
-  color: #0f172a;
-}
-
-.input:focus {
-  outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
-}
-
-/* ====== Tabla Evaluación ====== */
+/* ====== Tabla de Evaluación ====== */
 .eval-wrapper {
   overflow-x: auto;
 }
@@ -111,7 +66,6 @@ html, body {
 .eval-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
@@ -126,25 +80,38 @@ html, body {
   text-align: center;
   padding: 14px 10px;
   font-size: 16px;
-  border-bottom: 2px solid #bcd0ff; /* línea más visible */
+  border-bottom: 2px solid #bcd0ff;
 }
 
-/* Primera columna (ítem) */
+/* Primera columna más ancha */
 .eval-table td.eval-item {
+  width: 60%;
   padding: 16px 12px;
   font-weight: 700;
-  vertical-align: middle;
   color: #0f172a;
+  vertical-align: middle;
+  text-align: left;
 }
 
-/* Celdas de opciones */
+/* Otras columnas más angostas */
 .eval-table td.eval-cell {
+  width: 10%;
   text-align: center;
   vertical-align: middle;
   padding: 14px 10px;
 }
 
-/* Radio más accesible */
+/* Líneas divisorias */
+.eval-table tr + tr {
+  border-top: 1px solid #bcd0ff;
+}
+
+/* Alternar fondo */
+.eval-table tbody tr:nth-child(odd) {
+  background: #fcfdff;
+}
+
+/* Radios */
 .eval-table input[type="radio"] {
   width: 18px;
   height: 18px;
@@ -152,17 +119,7 @@ html, body {
   cursor: pointer;
 }
 
-/* Líneas entre FILAS: visibles en azul tenue */
-.eval-table tr + tr {
-  border-top: 1px solid #bcd0ff; /* <— separación clara entre filas */
-}
-
-/* Rayas de fondo alternas (muy tenue) */
-.eval-table tbody tr:nth-child(odd) {
-  background: #fcfdff;
-}
-
-/* ====== Acciones ====== */
+/* ====== Botones y acciones ====== */
 .actions {
   display: flex;
   flex-wrap: wrap;
@@ -195,7 +152,7 @@ html, body {
   pointer-events: none;
 }
 
-/* ====== Mensajes y validación ====== */
+/* ====== Mensajes ====== */
 .ok {
   margin-top: 14px;
   padding: 10px 12px;
@@ -205,6 +162,7 @@ html, body {
   border-radius: 6px;
   font-weight: 600;
 }
+
 .error {
   margin-top: 14px;
   padding: 10px 12px;
@@ -213,10 +171,6 @@ html, body {
   border: 1px solid #f5c2c7;
   border-radius: 6px;
   font-weight: 600;
-}
-.invalid {
-  border-color: #c53030 !important;
-  background: #fffafa;
 }
 
 /* ====== Borradores ====== */
@@ -229,35 +183,8 @@ html, body {
   border-radius: 6px;
   font-weight: 600;
 }
-.draft-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 6px;
-}
-.btn-file {
-  position: relative;
-  overflow: hidden;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: #f5f5f5;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  cursor: pointer;
-}
-.btn-file input[type="file"] {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  cursor: pointer;
-}
 
-/* ====== Utilidades ====== */
-.mt-16 { margin-top: 16px; }
-
-/* ====== Responsive ====== */
+/* ====== Responsivo ====== */
 @media (max-width: 820px) {
   .app-title { font-size: 28px; }
   .app-subtitle { font-size: 18px; }
