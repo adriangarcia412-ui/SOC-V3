@@ -10,15 +10,19 @@ function App() {
     antiguedad: "",
     area: "",
     supervisor: "",
-    // evaluaciones: arreglo de objetos { inicialSi, inicialNo, finalSi, finalNo }
-    evaluaciones: Array(13).fill({ inicialSi: "", inicialNo: "", finalSi: "", finalNo: "" }),
+    evaluaciones: Array(13).fill({
+      inicialSi: "",
+      inicialNo: "",
+      finalSi: "",
+      finalNo: "",
+    }),
     pctInicial: 0,
     pctFinal: 0,
     ps: "",
     ic: "",
   });
 
-  // ====== Ítems de evaluación (ES / ZH) ======
+  // ====== Lista de ítems ======
   const items = [
     "Usa herramientas adecuadas para la tarea / 使用适当的工具完成任务",
     "Se usan los equipos de manera segura, sin improvisaciones / 安全使用设备，无即兴操作",
@@ -35,23 +39,24 @@ function App() {
     "Retira rebabas o virutas con herramienta, no con la mano / 使用工具清理毛刺，不用手清理",
   ];
 
-  // ====== Handlers campos de texto ======
+  // ====== Cambios de texto ======
   const onChangeText = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // ====== Handlers radio por fase/ítem ======
-  //  Agrupamos radios por name:
-  //    Inicial: name={`i${idx}-inicial`}  -> valores "SI" | "NO"
-  //    Final:   name={`i${idx}-final`}    -> valores "SI" | "NO"
+  // ====== Cambios en radios ======
   const onChangeRadio = (idx, fase, valor) => {
     setFormData((prev) => {
       const next = [...prev.evaluaciones];
-      const actual = next[idx] || { inicialSi: "", inicialNo: "", finalSi: "", finalNo: "" };
+      const actual = next[idx] || {
+        inicialSi: "",
+        inicialNo: "",
+        finalSi: "",
+        finalNo: "",
+      };
 
       if (fase === "inicial") {
-        // Si marca SI, limpiamos NO, y viceversa
         if (valor === "SI") {
           actual.inicialSi = "SI";
           actual.inicialNo = "";
@@ -74,15 +79,15 @@ function App() {
     });
   };
 
-  // ====== Cálculo de % (contamos “SI”) ======
+  // ====== Cálculo de porcentajes ======
   const calcularPct = () => {
     const total = items.length;
     let iniSi = 0;
     let finSi = 0;
 
     formData.evaluaciones.forEach((ev) => {
-      if (ev && ev.inicialSi === "SI") iniSi += 1;
-      if (ev && ev.finalSi === "SI") finSi += 1;
+      if (ev.inicialSi === "SI") iniSi++;
+      if (ev.finalSi === "SI") finSi++;
     });
 
     const pctInicial = Math.round((iniSi / total) * 100) || 0;
@@ -91,14 +96,14 @@ function App() {
     setFormData((prev) => ({ ...prev, pctInicial, pctFinal }));
   };
 
-  // ====== Envío a Google Apps Script (proxy /api/gsheet) ======
+  // ====== Envío ======
   const onSubmit = async (e) => {
     e.preventDefault();
     calcularPct();
 
     try {
       const payload = {
-        fase: "FINAL", // mandamos cierre con ambos cálculos
+        fase: "FINAL",
         ts: new Date().toISOString(),
         nombre: formData.nombre,
         antiguedad: formData.antiguedad,
@@ -125,13 +130,13 @@ function App() {
     }
   };
 
-  // === Render ===
+  // ====== Render ======
   return (
     <div className="container">
       <h1 className="title">SOC V3</h1>
       <h2 className="subtitle">Sistema de Observación de Comportamientos</h2>
+      <h3 className="subtitle-zh">行为观察系统</h3>
 
-      {/* ====== Información del empleado ====== */}
       <h2>Información del empleado / 员工信息</h2>
       <form onSubmit={onSubmit}>
         <div className="grid">
@@ -177,7 +182,7 @@ function App() {
           />
         </div>
 
-        {/* ====== Evaluación (tabla con 4 columnas fijas) ====== */}
+        {/* ====== Evaluación ====== */}
         <h2>Evaluación / 评估</h2>
         <table className="eval-table">
           <thead>
@@ -194,60 +199,44 @@ function App() {
               <tr key={idx}>
                 <td className="eval-item">{txt}</td>
 
-                {/* Inicial Sí */}
                 <td className="eval-cell">
-                  <label className="radio">
-                    <input
-                      type="radio"
-                      name={`i${idx}-inicial`}
-                      value="SI"
-                      checked={formData.evaluaciones[idx]?.inicialSi === "SI"}
-                      onChange={() => onChangeRadio(idx, "inicial", "SI")}
-                    />
-                    <span>Sí</span>
-                  </label>
+                  <input
+                    type="radio"
+                    name={`i${idx}-inicial`}
+                    value="SI"
+                    checked={formData.evaluaciones[idx]?.inicialSi === "SI"}
+                    onChange={() => onChangeRadio(idx, "inicial", "SI")}
+                  />
                 </td>
 
-                {/* Inicial No */}
                 <td className="eval-cell">
-                  <label className="radio">
-                    <input
-                      type="radio"
-                      name={`i${idx}-inicial`}
-                      value="NO"
-                      checked={formData.evaluaciones[idx]?.inicialNo === "NO"}
-                      onChange={() => onChangeRadio(idx, "inicial", "NO")}
-                    />
-                    <span>No</span>
-                  </label>
+                  <input
+                    type="radio"
+                    name={`i${idx}-inicial`}
+                    value="NO"
+                    checked={formData.evaluaciones[idx]?.inicialNo === "NO"}
+                    onChange={() => onChangeRadio(idx, "inicial", "NO")}
+                  />
                 </td>
 
-                {/* Final Sí */}
                 <td className="eval-cell">
-                  <label className="radio">
-                    <input
-                      type="radio"
-                      name={`i${idx}-final`}
-                      value="SI"
-                      checked={formData.evaluaciones[idx]?.finalSi === "SI"}
-                      onChange={() => onChangeRadio(idx, "final", "SI")}
-                    />
-                    <span>Sí</span>
-                  </label>
+                  <input
+                    type="radio"
+                    name={`i${idx}-final`}
+                    value="SI"
+                    checked={formData.evaluaciones[idx]?.finalSi === "SI"}
+                    onChange={() => onChangeRadio(idx, "final", "SI")}
+                  />
                 </td>
 
-                {/* Final No */}
                 <td className="eval-cell">
-                  <label className="radio">
-                    <input
-                      type="radio"
-                      name={`i${idx}-final`}
-                      value="NO"
-                      checked={formData.evaluaciones[idx]?.finalNo === "NO"}
-                      onChange={() => onChangeRadio(idx, "final", "NO")}
-                    />
-                    <span>No</span>
-                  </label>
+                  <input
+                    type="radio"
+                    name={`i${idx}-final`}
+                    value="NO"
+                    checked={formData.evaluaciones[idx]?.finalNo === "NO"}
+                    onChange={() => onChangeRadio(idx, "final", "NO")}
+                  />
                 </td>
               </tr>
             ))}
