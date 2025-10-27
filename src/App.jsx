@@ -1,23 +1,32 @@
-// ======= App.jsx (REEMPLAZA TODO EL ARCHIVO) =======
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import "./modern.css";
 
-/** ⛳️ CONFIGURACIÓN */
-// Tu WebApp de Apps Script (la misma que ya usas y funciona):
+/* ================== CONFIG ================== */
 const SCRIPT_URL =
-  "https://script.google.com/macros/s/AKfycbz2jHR--ztUyX-PE78lvjG4GXKbtdDJ5e3jJDgPtRaFcCDh258hu9slB4SAxgFkMPmIOg/exec";
+  "https://script.google.com/macros/s/AKfycbw-oreEqAmNrXg208Y0RlGY_mkqKasLOKRh7YAJcSb6QtZgd4neplWXM3HDbLK2Tvnh2g/exec";
 
-const STORAGE_KEY = "SOC_V3_PENDIENTES"; // ahora guardamos un ARREGLO
-const ID_PREFIX = "PEND-";
+const STORAGE_KEY_DRAFTS = "soc_v3_drafts";
+const STORAGE_KEY_RESUME = "soc_v3_resume_id";
 
-/** Helper: id corto legible */
-function makeId() {
-  const rnd = Math.random().toString(36).slice(2, 7);
-  const ts = Date.now().toString(36).slice(-4);
-  return `${ID_PREFIX}${ts}-${rnd}`;
+/* ============== UTILIDADES ============== */
+const uid = (len = 5) =>
+  Math.random().toString(36).slice(2, 2 + len);
+
+const nowISO = () => new Date().toISOString();
+
+function postJSON(url, payload) {
+  return fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then((r) => r.json());
 }
 
-/** Ítems de evaluación (ajusta tu lista si hace falta) */
+function getJSON(url) {
+  return fetch(url).then((r) => r.json());
+}
+
+/* ============== ITEMS ============== */
 const items = [
   "Usa herramientas adecuadas para la tarea / 使用适当的工具完成任务",
   "Se usan los equipos de manera segura, sin improvisaciones / 安全使用设备，无即兴操作",
@@ -31,438 +40,435 @@ const items = [
   "Verifica el estado de sus herramientas / 工具设备点检完好",
 ];
 
-/** Estado inicial del formulario */
-function emptyForm() {
-  return {
-    id: "",
-    fase: "INICIAL", // INICIAL o FINAL
+/* ============== APP ============== */
+export default function App() {
+  const [form, setForm] = useState({
     fecha: "",
     nombre: "",
     antiguedad: "",
     area: "",
     supervisor: "",
-    evaluaciones: items.map(() => ({ inicialSi: "", inicialNo: "", finalSi: "", finalNo: "" })),
+    evaluaciones: items.map(() => ({
+      inicialSi: false,
+      inicialNo: false,
+      finalSi: false,
+      finalNo: false,
+    })),
     pctInicial: 0,
     pctFinal: 0,
-  };
-}
+  });
 
-export default function App() {
-  const [form, setForm] = useState(emptyForm());
-  const [okMsg, setOkMsg] = useState("");
-  const [errMsg, setErrMsg] = useState("");
+  const [message, setMessage] = useState(null); // {type: 'ok'|'error', text: string}
+  const [pending, setPending] = useState([]); // casos locales
+  const [sheetDrafts, setSheetDrafts] = useState([]); // borradores en Google Sheet (multidispositivo)
+  const [resumingId, setResumingId] = useState(null);
 
-  /** PENDIENTES LOCAL */
-  const [localPend, setLocalPend] = useState([]);
-  /** PENDIENTES NUBE */
-  const [cloudPend, setCloudPend] = useState([]);
-  const [loadingCloud, setLoadingCloud] = useState(false);
-
-  /** Cargar borradores locales al abrir */
+  /* ====== Cargar pendientes locales y sheet drafts ====== */
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      setLocalPend(raw ? JSON.parse(raw) : []);
-    } catch {
-      setLocalPend([]);
-    }
+    // Local (múltiples)
+    const raw = localStorage.getItem(STORAGE_KEY_DRAFTS);
+    const arr = raw ? JSON.parse(raw) : [];
+    setPending(arr);
+
+    // Reanudar si hay id marcado
+    const r = localStorage.getItem(STORAGE_KEY_RESUME);
+    if (r) setResumingId(r);
+
+    // Cargar drafts centralizados (para ver desde cualquier dispositivo)
+    getJSON(`${SCRIPT_URL}?action=list_drafts`).then((j) => {
+      if (j?.ok) setSheetDrafts(j.rows || []);
+    });
   }, []);
 
-  /** Guardar arreglo local cada vez que cambie */
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(localPend));
-  }, [localPend]);
-
-  /** Helpers de seteo */
-  const setField = (k, v) => setForm((s) => ({ ...s, [k]: v }));
-
-  /** Reglas: marcar sólo UNA opción por columna por fila */
-  const handleRadio = (rowIdx, colKey) => {
-    setForm((s) => {
-      const next = structuredClone(s);
-      if (colKey === "inicialSi") {
-        next.evaluaciones[rowIdx].inicialNo = "";
-        next.evaluaciones[rowIdx].inicialSi = "SI";
-      } else if (colKey === "inicialNo") {
-        next.evaluaciones[rowIdx].inicialSi = "";
-        next.evaluaciones[rowIdx].inicialNo = "NO";
-      } else if (colKey === "finalSi") {
-        next.evaluaciones[rowIdx].finalNo = "";
-        next.evaluaciones[rowIdx].finalSi = "SI";
-      } else if (colKey === "finalNo") {
-        next.evaluaciones[rowIdx].finalSi = "";
-        next.evaluaciones[rowIdx].finalNo = "NO";
+  /* ====== Métricas automáticas ====== */
+  const { pctInicial, pctFinal } = useMemo(() => {
+    let iYes = 0,
+      iCount = 0,
+      fYes = 0,
+      fCount = 0;
+    form.evaluaciones.forEach((e) => {
+      if (e.inicialSi || e.inicialNo) {
+        iCount++;
+        if (e.inicialSi) iYes++;
       }
-      return next;
+      if (e.finalSi || e.finalNo) {
+        fCount++;
+        if (e.finalSi) fYes++;
+      }
+    });
+    return {
+      pctInicial: iCount ? Math.round((iYes / iCount) * 100) : 0,
+      pctFinal: fCount ? Math.round((fYes / fCount) * 100) : 0,
+    };
+  }, [form.evaluaciones]);
+
+  useEffect(() => {
+    setForm((f) => ({ ...f, pctInicial, pctFinal }));
+  }, [pctInicial, pctFinal]);
+
+  /* ====== Handlers ====== */
+  const updateField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const handleMark = (rowIdx, col) => {
+    setForm((f) => {
+      const eva = [...f.evaluaciones];
+      const row = { ...eva[rowIdx] };
+      if (col === "inicialSi") {
+        row.inicialSi = true;
+        row.inicialNo = false;
+      } else if (col === "inicialNo") {
+        row.inicialNo = true;
+        row.inicialSi = false;
+      } else if (col === "finalSi") {
+        row.finalSi = true;
+        row.finalNo = false;
+      } else if (col === "finalNo") {
+        row.finalNo = true;
+        row.finalSi = false;
+      }
+      eva[rowIdx] = row;
+      return { ...f, evaluaciones: eva };
     });
   };
 
-  /** % auto (INICIAL) */
-  useEffect(() => {
-    const tot = form.evaluaciones.length;
-    const ok = form.evaluaciones.filter((e) => e.inicialSi === "SI").length;
-    const p = Math.round((ok / tot) * 100);
-    if (p !== form.pctInicial) setField("pctInicial", p);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [form.evaluaciones]);
-
-  /** ====== GUARDAR BORRADOR (LOCAL + NUBE) ====== */
-  const saveDraft = async () => {
-    try {
-      const id = form.id || makeId();
-      const payload = { ...form, id, fase: "INICIAL", fecha: new Date().toISOString() };
-
-      // 1) Guardar en LOCAL (multi)
-      setLocalPend((arr) => {
-        const filtered = arr.filter((d) => d.id !== id);
-        return [
-          ...filtered,
-          {
-            id,
-            ts: Date.now(),
-            nombre: payload.nombre || "",
-            antiguedad: payload.antiguedad || "",
-            area: payload.area || "",
-            supervisor: payload.supervisor || "",
-            pctInicial: payload.pctInicial || 0,
-            evaluaciones: payload.evaluaciones,
-          },
-        ];
-      });
-
-      // 2) Guardar en NUBE
-      await fetch(SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save_draft", draft: payload }),
-      });
-
-      setForm((s) => ({ ...s, id })); // fija el id al form
-      flashOk(`Borrador guardado: ${id}`);
-      await loadCloudDrafts(); // refresca lista nube
-    } catch (e) {
-      console.error(e);
-      flashErr("No pude guardar el borrador.");
-    }
+  /* ====== Guardar borrador local (múltiples) ====== */
+  const saveLocalDraft = () => {
+    const id = `PEND-${uid(4)}-${uid(4)}`;
+    const now = new Date();
+    const entry = {
+      id,
+      savedAt: now.toISOString(),
+      savedAtHuman: now.toLocaleString("es-MX"),
+      nombre: form.nombre || "",
+      antiguedad: form.antiguedad || "",
+      area: form.area || "",
+      supervisor: form.supervisor || "",
+      pctInicial: form.pctInicial || 0,
+      form,
+    };
+    const raw = localStorage.getItem(STORAGE_KEY_DRAFTS);
+    const arr = raw ? JSON.parse(raw) : [];
+    arr.unshift(entry); // acumular
+    localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(arr));
+    setPending(arr);
+    setMessage({ type: "ok", text: `Borrador local guardado: ${id}` });
   };
 
-  /** Cargar borradores en la nube */
-  const loadCloudDrafts = async () => {
-    try {
-      setLoadingCloud(true);
-      const r = await fetch(SCRIPT_URL + "?action=list_drafts");
-      const j = await r.json();
-      setCloudPend(Array.isArray(j.rows) ? j.rows : []);
-    } catch (e) {
-      console.error(e);
-      setCloudPend([]);
-    } finally {
-      setLoadingCloud(false);
-    }
-  };
-  useEffect(() => {
-    loadCloudDrafts();
-  }, []);
-
-  /** Reanudar (LOCAL o NUBE) */
-  const resumeLocal = (id) => {
-    const d = localPend.find((x) => x.id === id);
-    if (!d) return;
-    setForm((s) => ({
-      ...s,
-      id: d.id,
-      nombre: d.nombre,
-      antiguedad: d.antiguedad,
-      area: d.area,
-      supervisor: d.supervisor,
-      evaluaciones: d.evaluaciones,
-      pctInicial: d.pctInicial || 0,
-    }));
-    flashOk(`Reanudando caso ${id}.`);
+  const deleteLocalDraft = (id) => {
+    const raw = localStorage.getItem(STORAGE_KEY_DRAFTS);
+    const arr = raw ? JSON.parse(raw) : [];
+    const next = arr.filter((x) => x.id !== id);
+    localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(next));
+    setPending(next);
   };
 
-  const resumeCloud = async (id) => {
-    try {
-      const r = await fetch(SCRIPT_URL + "?action=get_draft&id=" + encodeURIComponent(id));
-      const j = await r.json();
-      if (!j || !j.ok || !j.draft) return flashErr("No encontré ese borrador en nube.");
-      const d = j.draft;
-      setForm((s) => ({
-        ...s,
-        id: d.id,
-        nombre: d.nombre || "",
-        antiguedad: d.antiguedad || "",
-        area: d.area || "",
-        supervisor: d.supervisor || "",
-        evaluaciones: Array.isArray(d.evaluaciones) ? d.evaluaciones : s.evaluaciones,
-        pctInicial: Number(d.pctInicial || 0),
-      }));
-      flashOk(`Reanudando caso ${id}.`);
-    } catch (e) {
-      console.error(e);
-      flashErr("No pude descargar ese borrador.");
-    }
+  const resumeLocalDraft = (id) => {
+    const raw = localStorage.getItem(STORAGE_KEY_DRAFTS);
+    const arr = raw ? JSON.parse(raw) : [];
+    const found = arr.find((x) => x.id === id);
+    if (!found) return;
+    setForm(found.form);
+    setMessage({ type: "ok", text: `Reanudando caso ${id}.` });
   };
 
-  /** Eliminar borrador (LOCAL o NUBE) */
-  const delLocal = (id) => {
-    setLocalPend((arr) => arr.filter((x) => x.id !== id));
-  };
-  const delCloud = async (id) => {
-    try {
-      await fetch(SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "delete_draft", id }),
-      });
-      await loadCloudDrafts();
-    } catch (e) {
-      console.error(e);
-      flashErr("No pude eliminar ese borrador en nube.");
-    }
-  };
-
-  /** Enviar a Google Sheets (cerrar caso) */
-  const sendToSheets = async () => {
-    try {
-      const payload = {
-        id: form.id || makeId(),
-        fase: "FINAL",
-        ts: new Date().toISOString(),
+  /* ====== Guardar borrador centralizado (Sheet) ====== */
+  const saveSheetDraft = async () => {
+    const id = `PEND-${uid(4)}${uid(4)}`;
+    const res = await postJSON(SCRIPT_URL, {
+      action: "save_draft",
+      draft: {
+        id,
         nombre: form.nombre || "",
         antiguedad: form.antiguedad || "",
         area: form.area || "",
         supervisor: form.supervisor || "",
-        evaluaciones: form.evaluaciones,
-        pct: form.pctFinal || 0,
-      };
-      const r = await fetch(SCRIPT_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const j = await r.json();
-      if (!j || !j.ok) throw new Error("Respuesta no OK");
-
-      // Limpiar de local y nube
-      setLocalPend((arr) => arr.filter((x) => x.id !== payload.id));
-      await delCloud(payload.id);
-
-      flashOk("Caso enviado y cerrado.");
-      setForm(emptyForm());
-    } catch (e) {
-      console.error(e);
-      flashErr("No pude enviar a Google Sheets.");
+        pctInicial: form.pctInicial || 0,
+        evaluaciones: form.evaluaciones || [],
+      },
+    });
+    if (res?.ok) {
+      setMessage({ type: "ok", text: `Borrador central guardado: ${id}` });
+      // refrescar lista
+      const j = await getJSON(`${SCRIPT_URL}?action=list_drafts`);
+      if (j?.ok) setSheetDrafts(j.rows || []);
+      // marcar para reanudar en otro dispositivo
+      localStorage.setItem(STORAGE_KEY_RESUME, id);
+    } else {
+      setMessage({ type: "error", text: `Error guardando: ${res?.error || ""}` });
     }
   };
 
-  /** Mensajes */
-  const flashOk = (t) => {
-    setOkMsg(t);
-    setTimeout(() => setOkMsg(""), 3500);
+  const resumeSheetDraft = async (id) => {
+    const j = await getJSON(`${SCRIPT_URL}?action=get_draft&id=${encodeURIComponent(id)}`);
+    if (j?.ok && j.draft) {
+      setForm((f) => ({
+        ...f,
+        nombre: j.draft.nombre || "",
+        antiguedad: j.draft.antiguedad || "",
+        area: j.draft.area || "",
+        supervisor: j.draft.supervisor || "",
+        evaluaciones: j.draft.evaluaciones || items.map(() => ({
+          inicialSi:false,inicialNo:false,finalSi:false,finalNo:false
+        })),
+        pctInicial: j.draft.pctInicial || 0,
+      }));
+      setMessage({ type: "ok", text: `Reanudando caso ${id}` });
+    } else {
+      setMessage({ type: "error", text: `No se pudo reanudar ${id}` });
+    }
   };
-  const flashErr = (t) => {
-    setErrMsg(t);
-    setTimeout(() => setErrMsg(""), 4500);
+
+  const deleteSheetDraft = async (id) => {
+    const r = await postJSON(SCRIPT_URL, { action: "delete_draft", id });
+    if (r?.ok) {
+      const j = await getJSON(`${SCRIPT_URL}?action=list_drafts`);
+      if (j?.ok) setSheetDrafts(j.rows || []);
+    }
   };
 
-  /** UI encabezado */
-  const header = (
-    <>
-      <h1>SOC V3</h1>
-      <p>Sistema de Observación de Comportamientos</p>
-
-      {okMsg && <div className="ok">{okMsg}</div>}
-      {errMsg && <div className="error">{errMsg}</div>}
-
-      <div className="grid2">
-        <label>
-          Fecha y hora:
-          <input
-            type="datetime-local"
-            value={form.fecha}
-            onChange={(e) => setField("fecha", e.target.value)}
-          />
-        </label>
-        <label>
-          Nombre del empleado:
-          <input value={form.nombre} onChange={(e) => setField("nombre", e.target.value)} />
-        </label>
-        <label>
-          Antigüedad:
-          <input value={form.antiguedad} onChange={(e) => setField("antiguedad", e.target.value)} />
-        </label>
-        <label>
-          Área:
-          <input value={form.area} onChange={(e) => setField("area", e.target.value)} />
-        </label>
-        <label>
-          Supervisor:
-          <input value={form.supervisor} onChange={(e) => setField("supervisor", e.target.value)} />
-        </label>
-      </div>
-
-      <div className="actions">
-        <button onClick={saveDraft}>Guardar borrador</button>
-        <button onClick={sendToSheets}>Enviar a Google Sheets (cerrar caso)</button>
-      </div>
-    </>
-  );
-
-  /** Tabla de evaluación */
-  const table = (
-    <>
-      <p className="hint">Marca solo <b>una</b> opción por columna (Inicial o Final) en cada fila.</p>
-      <table className="eval-table">
-        <thead>
-          <tr>
-            <th className="col-item">Ítem / 项目</th>
-            <th>Inicial Sí / 初始是</th>
-            <th>Inicial No / 初始否</th>
-            <th>Final Sí / 最终是</th>
-            <th>Final No / 最终否</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((txt, idx) => (
-            <tr key={idx}>
-              <td className="eval-item">{txt}</td>
-              {["inicialSi", "inicialNo", "finalSi", "finalNo"].map((key) => (
-                <td key={key} className="eval-cell">
-                  <input
-                    type="radio"
-                    name={`row-${idx}-${key.includes("inicial") ? "inicial" : "final"}`}
-                    checked={form.evaluaciones[idx][key] !== ""}
-                    onChange={() => handleRadio(idx, key)}
-                  />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <div className="grid2 mt12">
-        <label>
-          Porcentaje de cumplimiento inicial (%):
-          <input
-            type="number"
-            value={form.pctInicial}
-            onChange={(e) => setField("pctInicial", Number(e.target.value || 0))}
-          />
-        </label>
-        <label>
-          Porcentaje de cumplimiento final (%):
-          <input
-            type="number"
-            value={form.pctFinal}
-            onChange={(e) => setField("pctFinal", Number(e.target.value || 0))}
-          />
-        </label>
-      </div>
-    </>
-  );
-
-  /** Tabla de pendientes (local) */
-  const tableLocal = (
-    <>
-      <h2>Casos pendientes (guardados localmente)</h2>
-      {localPend.length === 0 ? (
-        <div className="draft-banner">No hay pendientes.</div>
-      ) : (
-        <table className="pend-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Guardado</th>
-              <th>Nombre</th>
-              <th>Área</th>
-              <th>Supervisor</th>
-              <th>% Inicial</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {localPend
-              .slice()
-              .sort((a, b) => b.ts - a.ts)
-              .map((d) => (
-                <tr key={d.id}>
-                  <td>{d.id}</td>
-                  <td>{new Date(d.ts).toLocaleString()}</td>
-                  <td>{d.nombre}</td>
-                  <td>{d.area}</td>
-                  <td>{d.supervisor}</td>
-                  <td>{d.pctInicial}%</td>
-                  <td className="td-actions">
-                    <button onClick={() => resumeLocal(d.id)}>Reanudar</button>
-                    <button className="danger" onClick={() => delLocal(d.id)}>
-                      Eliminar
-                    </button>
-                  </td>
-                </tr>
-              ))}
-          </tbody>
-        </table>
-      )}
-    </>
-  );
-
-  /** Tabla de pendientes (nube) */
-  const tableCloud = (
-    <>
-      <h2>Casos pendientes (guardados en la nube)</h2>
-      {loadingCloud ? (
-        <div className="draft-banner">Cargando…</div>
-      ) : cloudPend.length === 0 ? (
-        <div className="draft-banner">No hay pendientes en nube.</div>
-      ) : (
-        <table className="pend-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Guardado</th>
-              <th>Nombre</th>
-              <th>Área</th>
-              <th>Supervisor</th>
-              <th>% Inicial</th>
-              <th>Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {cloudPend.map((d) => (
-              <tr key={d.id}>
-                <td>{d.id}</td>
-                <td>{d.ts_humano}</td>
-                <td>{d.nombre}</td>
-                <td>{d.area}</td>
-                <td>{d.supervisor}</td>
-                <td>{d.pct_inicial}%</td>
-                <td className="td-actions">
-                  <button onClick={() => resumeCloud(d.id)}>Reanudar</button>
-                  <button className="danger" onClick={() => delCloud(d.id)}>
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </>
-  );
+  /* ====== Enviar y cerrar caso ====== */
+  const enviarGoogle = async () => {
+    const payload = {
+      fase: "FINAL",
+      id: `REG-${uid(6)}-${uid(4)}`,
+      ts: nowISO(),
+      nombre: form.nombre,
+      antiguedad: form.antiguedad,
+      area: form.area,
+      supervisor: form.supervisor,
+      evaluaciones: form.evaluaciones,
+      pct: form.pctFinal,
+    };
+    const r = await postJSON(SCRIPT_URL, payload);
+    if (r?.ok) {
+      setMessage({ type: "ok", text: `Enviado. ID: ${r.id}` });
+      // limpiar reanudar
+      localStorage.removeItem(STORAGE_KEY_RESUME);
+    } else {
+      setMessage({ type: "error", text: r?.error || "Error al enviar" });
+    }
+  };
 
   return (
     <div className="container">
-      {header}
-      <h2>Evaluación / 评估</h2>
-      {table}
-      <div className="mt16">
-        {tableLocal}
-        {tableCloud}
-      </div>
-      <footer>Hengli · SOC V3</footer>
+      <header className="header">
+        <h1 className="brand"><span>Hengli ·</span> SOC V3</h1>
+        <p className="subtitle">Sistema de Observación de Comportamientos</p>
+      </header>
+
+      {/* Datos del empleado */}
+      <section className="card">
+        <h2>Información del empleado / 员工信息</h2>
+        <div className="grid-2">
+          <label>
+            Fecha y hora
+            <input
+              type="datetime-local"
+              value={form.fecha}
+              onChange={(e) => updateField("fecha", e.target.value)}
+            />
+          </label>
+          <label>
+            Nombre del empleado
+            <input
+              value={form.nombre}
+              onChange={(e) => updateField("nombre", e.target.value)}
+              placeholder="Nombre y apellido"
+            />
+          </label>
+          <label>
+            Antigüedad
+            <input
+              value={form.antiguedad}
+              onChange={(e) => updateField("antiguedad", e.target.value)}
+              placeholder="Ej. 2 años"
+            />
+          </label>
+          <label>
+            Área
+            <input
+              value={form.area}
+              onChange={(e) => updateField("area", e.target.value)}
+              placeholder="Área"
+            />
+          </label>
+          <label>
+            Supervisor
+            <input
+              value={form.supervisor}
+              onChange={(e) => updateField("supervisor", e.target.value)}
+              placeholder="Supervisor"
+            />
+          </label>
+        </div>
+
+        <div className="actions">
+          <button onClick={saveLocalDraft}>Guardar borrador (local)</button>
+          <button onClick={saveSheetDraft}>Guardar borrador (multidispositivo)</button>
+          <button className="primary" onClick={enviarGoogle}>Enviar a Google Sheets (cerrar caso)</button>
+        </div>
+
+        {message && (
+          <div className={message.type === "ok" ? "ok" : "error"}>
+            {message.text}
+          </div>
+        )}
+      </section>
+
+      {/* Evaluación */}
+      <section className="card">
+        <h2>Marca solo <strong>una</strong> columna por fila (Inicial o Final).</h2>
+        <table className="eval-table">
+          <thead>
+            <tr>
+              <th className="col-item">Ítem / 项目</th>
+              <th>Inicial Sí / 初始是</th>
+              <th>Inicial No / 初始否</th>
+              <th>Final Sí / 最终是</th>
+              <th>Final No / 最终否</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.map((txt, idx) => {
+              const e = form.evaluaciones[idx];
+              return (
+                <tr key={idx}>
+                  <td className="eval-item">{txt}</td>
+                  <td className="eval-cell">
+                    <input
+                      type="radio"
+                      name={`ini-${idx}`}
+                      checked={e.inicialSi}
+                      onChange={() => handleMark(idx, "inicialSi")}
+                    />
+                  </td>
+                  <td className="eval-cell">
+                    <input
+                      type="radio"
+                      name={`ini-${idx}`}
+                      checked={e.inicialNo}
+                      onChange={() => handleMark(idx, "inicialNo")}
+                    />
+                  </td>
+                  <td className="eval-cell">
+                    <input
+                      type="radio"
+                      name={`fin-${idx}`}
+                      checked={e.finalSi}
+                      onChange={() => handleMark(idx, "finalSi")}
+                    />
+                  </td>
+                  <td className="eval-cell">
+                    <input
+                      type="radio"
+                      name={`fin-${idx}`}
+                      checked={e.finalNo}
+                      onChange={() => handleMark(idx, "finalNo")}
+                    />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+
+        <div className="grid-2 mt-12">
+          <label>
+            Porcentaje de cumplimiento inicial (%)
+            <input value={form.pctInicial} readOnly />
+          </label>
+          <label>
+            Porcentaje de cumplimiento final (%)
+            <input value={form.pctFinal} readOnly />
+          </label>
+        </div>
+      </section>
+
+      {/* Casos locales (múltiples) */}
+      <section className="card">
+        <h2>Casos pendientes (guardados localmente)</h2>
+        {pending.length === 0 ? (
+          <div className="note">No hay pendientes.</div>
+        ) : (
+          <div className="pending">
+            <table className="list">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Guardado</th>
+                  <th>Nombre</th>
+                  <th>Área</th>
+                  <th>Supervisor</th>
+                  <th>% Inicial</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pending.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.id}</td>
+                    <td>{p.savedAtHuman}</td>
+                    <td>{p.nombre}</td>
+                    <td>{p.area}</td>
+                    <td>{p.supervisor}</td>
+                    <td>{p.pctInicial}%</td>
+                    <td className="row-actions">
+                      <button onClick={() => resumeLocalDraft(p.id)}>Reanudar</button>
+                      <button className="danger" onClick={() => deleteLocalDraft(p.id)}>
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Borradores centralizados (multidispositivo) */}
+      <section className="card">
+        <h2>Borradores centralizados (ver en cualquier dispositivo)</h2>
+        {sheetDrafts.length === 0 ? (
+          <div className="note">No hay borradores centralizados.</div>
+        ) : (
+          <div className="pending">
+            <table className="list">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Guardado</th>
+                  <th>Nombre</th>
+                  <th>Área</th>
+                  <th>Supervisor</th>
+                  <th>% Inicial</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {sheetDrafts.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.id}</td>
+                    <td>{p.ts_humano}</td>
+                    <td>{p.nombre}</td>
+                    <td>{p.area}</td>
+                    <td>{p.supervisor}</td>
+                    <td>{p.pct_inicial}%</td>
+                    <td className="row-actions">
+                      <button onClick={() => resumeSheetDraft(p.id)}>Reanudar</button>
+                      <button className="danger" onClick={() => deleteSheetDraft(p.id)}>
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <footer className="footer">Hengli · SOC V3</footer>
     </div>
   );
 }
-// ======= FIN App.jsx =======
