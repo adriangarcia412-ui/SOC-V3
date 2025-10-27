@@ -2,24 +2,7 @@ import React, { useState } from "react";
 import "./modern.css";
 
 function App() {
-  const [formData, setFormData] = useState({
-    fecha: "",
-    nombre: "",
-    antiguedad: "",
-    area: "",
-    supervisor: "",
-    evaluaciones: Array(13).fill({
-      inicialSi: "",
-      inicialNo: "",
-      finalSi: "",
-      finalNo: "",
-    }),
-    pctInicial: 0,
-    pctFinal: 0,
-    ps: "",
-    ic: "",
-  });
-
+  // Lista de ítems (13)
   const items = [
     "Usa herramientas adecuadas para la tarea / 使用适当的工具完成任务",
     "Se usan los equipos de manera segura, sin improvisaciones / 安全使用设备，无即兴操作",
@@ -36,6 +19,23 @@ function App() {
     "Retira rebabas o virutas con herramienta, no con la mano / 使用工具清理毛刺，不用手清理",
   ];
 
+  // ✅ Crea objetos independientes por fila
+  const makeEval = () => ({ inicialSi: "", inicialNo: "", finalSi: "", finalNo: "" });
+  const initialEvals = Array.from({ length: items.length }, makeEval);
+
+  const [formData, setFormData] = useState({
+    fecha: "",         // ISO local compatible con datetime-local
+    nombre: "",
+    antiguedad: "",
+    area: "",
+    supervisor: "",
+    evaluaciones: initialEvals,
+    pctInicial: 0,
+    pctFinal: 0,
+    ps: "",
+    ic: "",
+  });
+
   const onChangeText = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -43,13 +43,10 @@ function App() {
 
   const onChangeRadio = (idx, fase, valor) => {
     setFormData((prev) => {
-      const next = [...prev.evaluaciones];
-      const actual = next[idx] || {
-        inicialSi: "",
-        inicialNo: "",
-        finalSi: "",
-        finalNo: "",
-      };
+      const next = prev.evaluaciones.map((ev, i) =>
+        i === idx ? { ...ev } : ev
+      );
+      const actual = next[idx];
 
       if (fase === "inicial") {
         if (valor === "SI") {
@@ -69,7 +66,6 @@ function App() {
         }
       }
 
-      next[idx] = actual;
       return { ...prev, evaluaciones: next };
     });
   };
@@ -129,16 +125,70 @@ function App() {
       <h3 className="subtitle-zh">行为观察系统</h3>
 
       <h2>Información del empleado / 员工信息</h2>
+
+      {/* ✅ Una fila por campo, con label y calendario nativo */}
       <form onSubmit={onSubmit}>
-        <div className="grid">
-          <input id="fecha" name="fecha" type="text" placeholder="dd/mm/aaaa --:-- ----" value={formData.fecha} onChange={onChangeText} />
-          <input id="nombre" name="nombre" type="text" placeholder="Nombre y apellido" value={formData.nombre} onChange={onChangeText} />
-          <input id="antiguedad" name="antiguedad" type="text" placeholder="Ej. 2 años" value={formData.antiguedad} onChange={onChangeText} />
-          <input id="area" name="area" type="text" placeholder="Área" value={formData.area} onChange={onChangeText} />
-          <input id="supervisor" name="supervisor" type="text" placeholder="Supervisor" value={formData.supervisor} onChange={onChangeText} />
+        <div className="form-group">
+          <label htmlFor="fecha">Fecha y hora / 日期和时间:</label>
+          <input
+            id="fecha"
+            name="fecha"
+            type="datetime-local"
+            value={formData.fecha}
+            onChange={onChangeText}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="nombre">Nombre del empleado / 员工姓名:</label>
+          <input
+            id="nombre"
+            name="nombre"
+            type="text"
+            placeholder="Nombre y apellido"
+            value={formData.nombre}
+            onChange={onChangeText}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="antiguedad">Antigüedad / 工龄:</label>
+          <input
+            id="antiguedad"
+            name="antiguedad"
+            type="text"
+            placeholder="Ej. 2 años"
+            value={formData.antiguedad}
+            onChange={onChangeText}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="area">Área / 区域:</label>
+          <input
+            id="area"
+            name="area"
+            type="text"
+            placeholder="Área"
+            value={formData.area}
+            onChange={onChangeText}
+          />
+        </div>
+
+        <div className="form-group">
+          <label htmlFor="supervisor">Supervisor / 主管:</label>
+          <input
+            id="supervisor"
+            name="supervisor"
+            type="text"
+            placeholder="Supervisor"
+            value={formData.supervisor}
+            onChange={onChangeText}
+          />
         </div>
 
         <h2>Evaluación / 评估</h2>
+
         <table className="eval-table">
           <thead>
             <tr>
@@ -153,10 +203,46 @@ function App() {
             {items.map((txt, idx) => (
               <tr key={idx}>
                 <td className="eval-item">{txt}</td>
-                <td><input type="radio" name={`i${idx}-inicial`} value="SI" checked={formData.evaluaciones[idx]?.inicialSi === "SI"} onChange={() => onChangeRadio(idx, "inicial", "SI")} /></td>
-                <td><input type="radio" name={`i${idx}-inicial`} value="NO" checked={formData.evaluaciones[idx]?.inicialNo === "NO"} onChange={() => onChangeRadio(idx, "inicial", "NO")} /></td>
-                <td><input type="radio" name={`i${idx}-final`} value="SI" checked={formData.evaluaciones[idx]?.finalSi === "SI"} onChange={() => onChangeRadio(idx, "final", "SI")} /></td>
-                <td><input type="radio" name={`i${idx}-final`} value="NO" checked={formData.evaluaciones[idx]?.finalNo === "NO"} onChange={() => onChangeRadio(idx, "final", "NO")} /></td>
+
+                {/* INICIAL */}
+                <td className="eval-cell">
+                  <input
+                    type="radio"
+                    name={`i${idx}-inicial`}
+                    value="SI"
+                    checked={formData.evaluaciones[idx]?.inicialSi === "SI"}
+                    onChange={() => onChangeRadio(idx, "inicial", "SI")}
+                  />
+                </td>
+                <td className="eval-cell">
+                  <input
+                    type="radio"
+                    name={`i${idx}-inicial`}
+                    value="NO"
+                    checked={formData.evaluaciones[idx]?.inicialNo === "NO"}
+                    onChange={() => onChangeRadio(idx, "inicial", "NO")}
+                  />
+                </td>
+
+                {/* FINAL */}
+                <td className="eval-cell">
+                  <input
+                    type="radio"
+                    name={`i${idx}-final`}
+                    value="SI"
+                    checked={formData.evaluaciones[idx]?.finalSi === "SI"}
+                    onChange={() => onChangeRadio(idx, "final", "SI")}
+                  />
+                </td>
+                <td className="eval-cell">
+                  <input
+                    type="radio"
+                    name={`i${idx}-final`}
+                    value="NO"
+                    checked={formData.evaluaciones[idx]?.finalNo === "NO"}
+                    onChange={() => onChangeRadio(idx, "final", "NO")}
+                  />
+                </td>
               </tr>
             ))}
           </tbody>
@@ -164,10 +250,40 @@ function App() {
 
         <h3>Resumen de resultados / 结果汇总</h3>
         <div className="summary">
-          <input id="pct-inicial" name="pctInicial" type="number" placeholder="Porcentaje de cumplimiento inicial (%)" value={formData.pctInicial} onChange={onChangeText} onBlur={calcularPct} />
-          <input id="pct-final" name="pctFinal" type="number" placeholder="Porcentaje de cumplimiento final (%)" value={formData.pctFinal} onChange={onChangeText} onBlur={calcularPct} />
-          <input id="ps" name="ps" type="text" placeholder="Pulso de Seguridad (PS)" value={formData.ps} onChange={onChangeText} />
-          <input id="ic" name="ic" type="text" placeholder="Índice de Corrección (IC)" value={formData.ic} onChange={onChangeText} />
+          <input
+            id="pct-inicial"
+            name="pctInicial"
+            type="number"
+            placeholder="Porcentaje de cumplimiento inicial (%)"
+            value={formData.pctInicial}
+            onChange={onChangeText}
+            onBlur={calcularPct}
+          />
+          <input
+            id="pct-final"
+            name="pctFinal"
+            type="number"
+            placeholder="Porcentaje de cumplimiento final (%)"
+            value={formData.pctFinal}
+            onChange={onChangeText}
+            onBlur={calcularPct}
+          />
+          <input
+            id="ps"
+            name="ps"
+            type="text"
+            placeholder="Pulso de Seguridad (PS)"
+            value={formData.ps}
+            onChange={onChangeText}
+          />
+          <input
+            id="ic"
+            name="ic"
+            type="text"
+            placeholder="Índice de Corrección (IC)"
+            value={formData.ic}
+            onChange={onChangeText}
+          />
         </div>
 
         <button type="submit" className="btn">Enviar</button>
