@@ -12,12 +12,13 @@ function App() {
     cumplimientoFinal: "",
     pulsoSeguridad: "",
     indiceCorreccion: "",
-    evaluaciones: Array(13).fill({
+    // Guardamos por ítem: { inicialSi, inicialNo, finalSi, finalNo }
+    evaluaciones: Array(13).fill(null).map(() => ({
       inicialSi: "",
       inicialNo: "",
       finalSi: "",
       finalNo: ""
-    }),
+    })),
   });
 
   // Lista de ítems traducidos
@@ -37,17 +38,98 @@ function App() {
     "Retira rebabas o virutas con herramienta, no con la mano / 使用工具清理毛刺，不用手清理",
   ];
 
-  // Manejo de cambios
+  // === Handlers ===
   const handleChange = (e) => {
     const { id, value } = e.target;
-    setFormData({ ...formData, [id]: value });
+    setFormData((s) => ({ ...s, [id]: value }));
   };
 
-  // Envío simulado (puede reemplazarse por POST real)
-  const handleSubmit = (e) => {
+  const handleEvalChange = (idx, fase, valor) => {
+    setFormData((s) => {
+      const next = [...s.evaluaciones];
+      // Reset pares para exclusividad
+      if (fase === "inicialSi") { next[idx].inicialSi = valor; next[idx].inicialNo = valor ? "" : next[idx].inicialNo; }
+      if (fase === "inicialNo") { next[idx].inicialNo = valor; next[idx].inicialSi = valor ? "" : next[idx].inicialSi; }
+      if (fase === "finalSi")   { next[idx].finalSi   = valor; next[idx].finalNo   = valor ? "" : next[idx].finalNo; }
+      if (fase === "finalNo")   { next[idx].finalNo   = valor; next[idx].finalSi   = valor ? "" : next[idx].finalSi; }
+      return { ...s, evaluaciones: next };
+    });
+  };
+
+  // Cálculo % a partir de evaluaciones
+  const computePct = (faseKey) => {
+    const total = formData.evaluaciones.length;
+    if (total === 0) return 0;
+    const siCount = formData.evaluaciones.reduce((acc, it) => acc + (it[faseKey] === "SI" ? 1 : 0), 0);
+    return Math.round((siCount / total) * 100);
+  };
+
+  // Envío a proxy (INICIAL y opcional FINAL)
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Datos del formulario:", formData);
-    alert("Formulario enviado correctamente ✅");
+
+    // 1) Construir INICIAL
+    const pctInicial = computePct("inicialSi");
+    const payloadInicial = {
+      fase: "INICIAL",
+      ts: new Date().toISOString(),
+      nombre: formData.nombre,
+      antiguedad: formData.antiguedad,
+      area: formData.area,
+      supervisor: formData.supervisor,
+      evaluaciones: formData.evaluaciones.map((it, i) => ({
+        item: i + 1,
+        inicialSi: it.inicialSi || "",
+        inicialNo: it.inicialNo || ""
+      })),
+      pct: pctInicial
+    };
+
+    // Enviar INICIAL
+    const r1 = await fetch("/api/gsheet", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payloadInicial),
+    });
+    const b1 = await r1.json();
+    console.log("INICIAL ->", b1);
+
+    if (!b1.ok || !b1.id) {
+      alert("Error guardando INICIAL. Revisa la consola.");
+      return;
+    }
+
+    // 2) Si hay alguna marca final, enviamos FINAL con el id de INICIAL
+    const hayFinal = formData.evaluaciones.some(it => it.finalSi || it.finalNo);
+    if (hayFinal) {
+      const pctFinal = computePct("finalSi");
+      const payloadFinal = {
+        id: b1.id,          // MUY IMPORTANTE: mismo id
+        fase: "FINAL",
+        ts: new Date().toISOString(),
+        evaluaciones: formData.evaluaciones.map((it, i) => ({
+          item: i + 1,
+          finalSi: it.finalSi || "",
+          finalNo: it.finalNo || ""
+        })),
+        pct: pctFinal
+      };
+
+      const r2 = await fetch("/api/gsheet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payloadFinal),
+      });
+      const b2 = await r2.json();
+      console.log("FINAL ->", b2);
+
+      if (!b2.ok) {
+        alert("INICIAL guardado, pero hubo error en FINAL. Revisa consola.");
+        return;
+      }
+    }
+
+    alert("Registro enviado correctamente ✅");
   };
 
   return (
@@ -79,23 +161,56 @@ function App() {
             <p>{item}</p>
             <div className="options">
               <label>Inicial Sí / 初始是</label>
-              <input type="radio" name={`i${index}_inicial`} value="Sí" onChange={handleChange} />
+              <input
+                type="radio"
+                name={`i${index}_inicial`}
+                onChange={() => handleEvalChange(index, "inicialSi", "SI")}
+                checked={formData.evaluaciones[index].inicialSi === "SI"}
+              />
               <label>Inicial No / 初始否</label>
-              <input type="radio" name={`i${index}_inicial`} value="No" onChange={handleChange} />
+              <input
+                type="radio"
+                name={`i${index}_inicial`}
+                onChange={() => handleEvalChange(index, "inicialNo", "NO")}
+                checked={formData.evaluaciones[index].inicialNo === "NO"}
+              />
+
               <label>Final Sí / 最终是</label>
-              <input type="radio" name={`i${index}_final`} value="Sí" onChange={handleChange} />
+              <input
+                type="radio"
+                name={`i${index}_final`}
+                onChange={() => handleEvalChange(index, "finalSi", "SI")}
+                checked={formData.evaluaciones[index].finalSi === "SI"}
+              />
               <label>Final No / 最终否</label>
-              <input type="radio" name={`i${index}_final`} value="No" onChange={handleChange} />
+              <input
+                type="radio"
+                name={`i${index}_final`}
+                onChange={() => handleEvalChange(index, "finalNo", "NO")}
+                checked={formData.evaluaciones[index].finalNo === "NO"}
+              />
             </div>
           </div>
         ))}
 
         <h4>Resumen de resultados / 结果汇总</h4>
         <label>Porcentaje de cumplimiento inicial (%):</label>
-        <input type="number" id="cumplimientoInicial" value={formData.cumplimientoInicial} onChange={handleChange} />
+        <input
+          type="number"
+          id="cumplimientoInicial"
+          value={computePct("inicialSi")}
+          onChange={() => {}}
+          readOnly
+        />
 
         <label>Porcentaje de cumplimiento final (%):</label>
-        <input type="number" id="cumplimientoFinal" value={formData.cumplimientoFinal} onChange={handleChange} />
+        <input
+          type="number"
+          id="cumplimientoFinal"
+          value={computePct("finalSi")}
+          onChange={() => {}}
+          readOnly
+        />
 
         <label>Pulso de Seguridad (PS):</label>
         <input type="number" id="pulsoSeguridad" value={formData.pulsoSeguridad} onChange={handleChange} />
@@ -110,4 +225,3 @@ function App() {
 }
 
 export default App;
-
