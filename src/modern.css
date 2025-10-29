@@ -1,6 +1,5 @@
 /* =========================
-   SOC V3 - modern.css
-   (archivo completo)
+   SOC V3 - modern.css (COMPLETO)
    ========================= */
 
 /* ---- Reset/Base ---- */
@@ -207,50 +206,39 @@ html, body {
   .emp-grid, .resume-grid { grid-template-columns: 1fr; }
 }
 
-/* ====================================================================== */
-/*                         TABLA DE EVALUACIÓN                            */
-/* ====================================================================== */
+/* =========================================================
+   TABLA DE EVALUACIÓN (diseño EXACTO a la segunda imagen)
+   ========================================================= */
 
-.eval-wrapper { overflow-x: auto; }
-
-/* Refuerzo de semántica de tabla para evitar apilado de <th> / <td> */
-.eval-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;         /* Control total de anchos */
-  background: #f8fafc;         /* gris MUY claro para contraste */
-  display: table;              /* fuerza modo tabla si algo lo cambió */
-}
+/* Fuerza semántica de tabla (evita que algún global la convierta en grid/flex) */
+.eval-table { display: table; width: 100%; border-collapse: collapse; table-layout: fixed; }
 .eval-table thead { display: table-header-group; }
 .eval-table tbody { display: table-row-group; }
 .eval-table tr    { display: table-row; }
 .eval-table th,
 .eval-table td    { display: table-cell; }
 
+/* Wrapper para scroll horizontal en móviles */
+.eval-wrapper { overflow-x: auto; }
+
 /* Encabezados */
 .eval-table thead th {
   position: sticky;
   top: 0;
-  background: #eff6ff;          /* azul muy claro */
+  z-index: 2;
+  background: #eff6ff;           /* azul muy claro */
   color: #0b3a82;
   font-weight: 800;
   text-align: center;
   padding: 14px 10px;
   border-bottom: 2px solid var(--line-strong);
-  z-index: 1;
 }
 
-/* --- Control de anchos por columnas ---
-   Opción A (si la tabla trae <colgroup>): */
-.eval-table col.item-col { width: 58%; }  /* Ítem amplio */
-.eval-table col.ci,
-.eval-table col.cn,
-.eval-table col.fi,
-.eval-table col.fn { width: 10.5%; }     /* columnas angostas */
-
-/* Opción B (fallback por nth-child, si NO hay <colgroup>) */
+/* Anchos idénticos a tu referencia:
+   Columna 1 ancha (58%) + 4 columnas de 10.5% c/u = 100% */
 .eval-table thead th:nth-child(1),
-.eval-table tbody td:nth-child(1) { width: 58%; }  /* Ítem amplio */
+.eval-table tbody td:nth-child(1) { width: 58%; text-align: left; }
+
 .eval-table thead th:nth-child(2),
 .eval-table thead th:nth-child(3),
 .eval-table thead th:nth-child(4),
@@ -258,47 +246,31 @@ html, body {
 .eval-table tbody td:nth-child(2),
 .eval-table tbody td:nth-child(3),
 .eval-table tbody td:nth-child(4),
-.eval-table tbody td:nth-child(5) { width: 10.5%; }
+.eval-table tbody td:nth-child(5) { width: 10.5%; text-align: center; }
 
-/* Celdas cuerpo */
+/* Filas */
 .eval-table tbody td {
-  border-bottom: 1px solid var(--line); /* LÍNEAS TENUES AZUL */
-  background: #ffffff;                  /* FONDO BLANCO filas */
+  border-bottom: 1px solid var(--line);  /* línea tenue azul */
+  background: #ffffff;                   /* fondo blanco */
+  vertical-align: middle;
 }
 
-/* Celda de descripción (ítem) */
+/* Descripción del ítem (columna 1) */
 .eval-item {
   padding: 18px 16px;
   font-weight: 700;
   line-height: 1.35;
-  color: #0e254d;
 }
 
-/* Celdas de radio */
+/* Celdas con radios */
 .eval-cell {
   text-align: center;
-  vertical-align: middle;
   padding: 16px 6px;
 }
-.eval-cell input[type="radio"] {
-  width: 18px; height: 18px;
-}
+.eval-cell input[type="radio"] { width: 18px; height: 18px; }
 
-/* Separación de filas (más aire visual) */
-.eval-table tbody tr td { padding-top: 8px; padding-bottom: 8px; }
-
-/* Responsive: permitir scroll horizontal y ajustar proporciones */
+/* Responsive: más aire + header legible */
 @media (max-width: 680px) {
-  /* Si hay colgroup */
-  .eval-table col.item-col { width: 64%; }
-  .eval-table col.ci,
-  .eval-table col.cn,
-  .eval-table col.fi,
-  .eval-table col.fn { width: 12%; }
-
-  /* Fallback nth-child */
-  .eval-table thead th:nth-child(1),
-  .eval-table tbody td:nth-child(1) { width: 64%; }
   .eval-table thead th { font-size: 14px; }
   .eval-item { font-size: 15px; }
 }
