@@ -1,28 +1,21 @@
 // src/config.js
+// Centraliza la URL del backend y helpers de fetch JSON
 
-// === URL del backend (Apps Script) ===
 export const API_URL =
-  "https://script.google.com/macros/s/AKfycbw-oreEqAmNrXg208Y0RlGY_mkqKasLOKRh7YAJcSb6QtZgd4neplWXM3HDbLK2Tvnh2g/exec";
+  "https://script.google.com/macros/s/AKfycbzMZl3qsIIIwIUAPGUk1JYt1CuPP3BI4Aq9WK5ZlAslrgNg4PPD5aQEcSe07Ce43stkLQ/exec";
 
-// === Helpers HTTP ===
-export async function postJSON(url, payload) {
-  const res = await fetch(url, {
+// Helper POST JSON
+export async function postJSON(url, data) {
+  const resp = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json;charset=utf-8" },
-    body: JSON.stringify(payload ?? {}),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data || {}),
   });
-  // Si Apps Script devuelve JSON con { ok: true/false, ... }
-  try {
-    return await res.json();
-  } catch {
-    return { ok: false, error: "Respuesta no JSON del servidor" };
-  }
+  return resp.json();
 }
 
-// Acciones de conveniencia (opcional)
-export const api = {
-  savePending: (record) => postJSON(API_URL, { action: "SAVE_PENDING", payload: record }),
-  listPending: () => postJSON(API_URL, { action: "LIST_PENDING" }),
-  deletePending: (id) => postJSON(API_URL, { action: "DELETE_PENDING", id }),
-  closeCase: (record) => postJSON(API_URL, { action: "CLOSE_CASE", payload: record }),
-};
+// Helper GET JSON (por si hicieras pings o lecturas simples)
+export async function getJSON(url) {
+  const resp = await fetch(url);
+  return resp.json();
+}
