@@ -5,6 +5,9 @@ export const API_URL =
   "https://script.google.com/macros/s/AKfycbzMZl3qsIIIwIUAPGUk1JYt1CuPP3BI4Aq9WK5ZlAslrgNg4PPD5aQEcSe07Ce43stkLQ/exec";
 
 // === Helpers de red (JSON) ===
+// Evitamos preflight CORS enviando texto plano.
+// Apps Script seguirá leyendo con JSON.parse(e.postData.contents).
+
 const DEFAULT_TIMEOUT_MS = 15000;
 
 function withTimeout(promise, ms = DEFAULT_TIMEOUT_MS) {
@@ -26,24 +29,24 @@ export async function postJSON(url, body) {
   const resp = await withTimeout(
     fetch(url, {
       method: "POST",
+      // 👇 Importante: texto plano para evitar preflight OPTIONS
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "text/plain;charset=utf-8",
         "Accept": "application/json",
       },
       body: JSON.stringify(body || {}),
-      // Importante: credenciales fuera, Apps Script con “Cualquiera con el enlace”
-      // no requiere cookies. Mantener simple evita “Failed to fetch”.
+      // NO usar credentials, ni headers custom.
     })
   );
 
-  // Si Apps Script devuelve 200 pero sin JSON válido, evitamos crash.
+  // Intentar leer JSON; si no, devolver texto/estado para diagnóstico
   let data = null;
   try {
     data = await resp.json();
   } catch {
-    data = { ok: false, status: resp.status, text: await resp.text() };
+    const text = await resp.text().catch(() => "");
+    data = { ok: false, status: resp.status, text };
   }
-
   return data;
 }
 
@@ -59,8 +62,8 @@ export async function getJSON(url) {
   try {
     data = await resp.json();
   } catch {
-    data = { ok: false, status: resp.status, text: await resp.text() };
+    const text = await resp.text().catch(() => "");
+    data = { ok: false, status: resp.status, text };
   }
-
   return data;
 }
