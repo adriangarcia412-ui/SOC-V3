@@ -34,10 +34,21 @@ html, body {
   padding: 0 16px;
 }
 
-/* ---- Encabezado (marca) ---- */
+/* ---- Encabezado (centrado con logo) ---- */
 .header { margin-bottom: 12px; }
-.brand { display: flex; gap: 12px; align-items: center; }
-.brand-logo { height: 46px; width: auto; }
+.brand-centered {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.logo-wrap img {
+  height: 42px;           /* tamaño controlado del logo */
+  max-width: 110px;       /* evita crecimientos inesperados */
+  width: auto;
+  display: block;
+}
 .title { margin: 0; color: var(--brand); font-weight: 800; }
 .subtitle, .subtitle-cn { margin: 0; color: var(--muted); }
 
@@ -105,7 +116,7 @@ html, body {
 }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-weight: 700; }
-.field input {
+.field input, .field select {
   padding: 10px 12px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -135,19 +146,20 @@ html, body {
 }
 
 /* =========================================================
-   TABLA DE EVALUACIÓN (divs que se comportan como tabla)
+   TABLA DE EVALUACIÓN (tabla real <table>)
    ========================================================= */
 
-/* Fuerza modelo de tabla (evita que reglas externas apilen) */
-.eval-table              { display: table; width: 100%; border-collapse: collapse; table-layout: fixed; }
-.eval-table .thead       { display: table-header-group; }
-.eval-table .tbody       { display: table-row-group; }
-.eval-table .tr          { display: table-row; }
-.eval-table .th,
-.eval-table .td          { display: table-cell; }
+.eval-wrapper { width: 100%; overflow-x: auto; }
+
+/* Forzamos layout fijo para respetar los anchos definidos */
+.eval-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;    /* clave para que se cumplan los % */
+}
 
 /* Encabezados */
-.eval-table .thead .th {
+.eval-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
@@ -159,44 +171,43 @@ html, body {
   border-bottom: 2px solid var(--line-strong);
 }
 
-/* ======= AJUSTE DE ANCHOS =======
-   Ítem más ancho y columnas Sí/No más estrechas
-*/
-.eval-table .thead .th.item,
-.eval-table .tbody .td.item     { width: 64%; }   /* antes 58% */
-
-.eval-table .thead .th:nth-child(2),
-.eval-table .thead .th:nth-child(3),
-.eval-table .thead .th:nth-child(4),
-.eval-table .thead .th:nth-child(5),
-.eval-table .tbody .td:nth-child(2),
-.eval-table .tbody .td:nth-child(3),
-.eval-table .tbody .td:nth-child(4),
-.eval-table .tbody .td:nth-child(5) { width: 9%; } /* antes 10.5% */
-
-/* Cuerpo: líneas y fondos */
-.eval-table .tbody .td {
-  border-bottom: 1px solid var(--line);   /* separador tenue azul */
+/* Cuerpo */
+.eval-table td {
+  border-bottom: 1px solid var(--line);
   background: #ffffff;
   padding: 16px 8px;
   vertical-align: middle;
 }
 
 /* Texto del ítem */
-.item-text {
+.eval-item .item-text {
   font-weight: 700;
   line-height: 1.35;
   padding: 2px 6px;
+  text-align: left;
 }
 
 /* Radios centrados */
-.eval-table .td.radio { text-align: center; }
-.eval-table .td.radio input[type="radio"] { width: 18px; height: 18px; }
+.eval-cell { text-align: center; }
+.eval-cell input[type="radio"] { width: 18px; height: 18px; }
 
-/* Responsive (en móviles permitimos scroll horizontal si hiciera falta) */
+/* ---------- Anchos de columnas ---------- */
+/* Columna 1 (Ítem) = 68% */
+.eval-table th.item,
+.eval-table td.eval-item { width: 68%; }
+
+/* Columnas 2–5 (radios) = 8% cada una */
+.eval-table thead th:nth-child(2),
+.eval-table thead th:nth-child(3),
+.eval-table thead th:nth-child(4),
+.eval-table thead th:nth-child(5),
+.eval-table tbody td:nth-child(2),
+.eval-table tbody td:nth-child(3),
+.eval-table tbody td:nth-child(4),
+.eval-table tbody td:nth-child(5) { width: 8%; }
+
+/* Responsive: permitimos scroll horizontal si hiciera falta */
 @media (max-width: 680px) {
-  .eval-table { overflow-x: auto; display: block; }
-  .eval-table .thead .th.item,
-  .eval-table .tbody .td.item { width: 64%; } /* puedes subir a 68–70% si lo prefieres */
-  .item-text { font-size: 15px; }
+  .eval-wrapper { overflow-x: auto; }
+  .eval-table { min-width: 760px; }
 }
