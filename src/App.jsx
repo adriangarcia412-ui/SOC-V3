@@ -288,7 +288,10 @@ export default function App() {
       supervisor: form.supervisor,
       pctInicial,
       pctFinal,
+      // Respuestas fila por fila
       rows: form.evaluaciones,
+      // *** NUEVO: textos de los ítems para que el backend cree/llene las columnas por ítem ***
+      items: ITEMS,
     };
 
     try {
@@ -404,7 +407,7 @@ export default function App() {
         {Msg}
       </section>
 
-      {/* Evaluación */}
+        {/* Evaluación */}
       <section className="card">
         <h2>Evaluación / 评估</h2>
         <p className="hint">
