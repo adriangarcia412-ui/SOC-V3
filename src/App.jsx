@@ -42,7 +42,6 @@ const emptyForm = () => ({
 });
 
 /* =============== LOGO HENGLI (robusto) =============== */
-// Prioriza el archivo que tienes en public/: /hengli-logo.png
 const LOGO_CANDIDATES = [
   "/hengli-logo.png",
   "/hengli.png",
@@ -119,6 +118,8 @@ export default function App() {
   };
 
   /* ===================== BORRADOR LOCAL ===================== */
+  // Nota: la función de borrador se mantiene por si se requiere en el futuro,
+  // pero ya no se muestra el botón en la UI.
   const guardarBorrador = () => {
     const basicFilled =
       (form.nombre || form.area || form.supervisor || form.fecha) &&
@@ -160,29 +161,6 @@ export default function App() {
         text: "No se pudo guardar el borrador (almacenamiento local).",
       });
     }
-  };
-
-  const reanudarLocal = (draft) => {
-    setForm({
-      id: draft.id,
-      fecha: draft.fecha || "",
-      nombre: draft.nombre || "",
-      antiguedad: draft.antiguedad || "",
-      area: draft.area || "",
-      supervisor: draft.supervisor || "",
-      evaluaciones:
-        Array.isArray(draft.evaluaciones) && draft.evaluaciones.length === ITEMS.length
-          ? draft.evaluaciones
-          : ITEMS.map(() => emptyRow()),
-    });
-    setMsg({ type: "ok", text: `Reanudando caso ${draft.id}` });
-  };
-
-  const eliminarLocal = (id) => {
-    const next = drafts.filter((d) => d.id !== id);
-    localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(next));
-    setDrafts(next);
-    if (form.id === id) setForm(emptyForm());
   };
 
   /* ===================== NUBE (Apps Script) ===================== */
@@ -295,7 +273,7 @@ export default function App() {
       pctInicial,
       pctFinal,
       rows: form.evaluaciones,
-      items: ITEMS, // para que el backend cree/llene columnas por ítem
+      items: ITEMS, // columnas por ítem
     };
 
     try {
@@ -396,14 +374,13 @@ export default function App() {
           </div>
         </div>
 
-        {/* Acciones de borrador */}
+        {/* Acciones (sin "Guardar borrador") */}
         <div className="actions">
-          <button onClick={guardarBorrador}>Guardar borrador</button>
           <button onClick={guardarNube} className="secondary">
-            Guardar en la nube (pendiente)
+            Guardar en la nube / 云端保存
           </button>
           <button onClick={() => { setForm(emptyForm()); setMsg(null); }}>
-            Limpiar formulario
+            Limpiar formulario / 清空表单
           </button>
         </div>
 
