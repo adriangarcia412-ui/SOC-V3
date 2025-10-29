@@ -117,9 +117,7 @@ export default function App() {
     });
   };
 
-  /* ===================== BORRADOR LOCAL ===================== */
-  // Nota: la función de borrador se mantiene por si se requiere en el futuro,
-  // pero ya no se muestra el botón en la UI.
+  /* ===================== BORRADOR LOCAL (no visible) ===================== */
   const guardarBorrador = () => {
     const basicFilled =
       (form.nombre || form.area || form.supervisor || form.fecha) &&
@@ -273,7 +271,7 @@ export default function App() {
       pctInicial,
       pctFinal,
       rows: form.evaluaciones,
-      items: ITEMS, // columnas por ítem
+      items: ITEMS,
     };
 
     try {
@@ -306,7 +304,7 @@ export default function App() {
   /* ===================== RENDER ===================== */
   return (
     <div className="container">
-      {/* Encabezado centrado con logo pequeño */}
+      {/* Encabezado centrado con logo */}
       <header
         className="header"
         style={{
@@ -336,6 +334,7 @@ export default function App() {
               onChange={(e) => setField("fecha", e.target.value)}
             />
           </div>
+
           <div className="field">
             <label>Nombre del empleado / 员工姓名:</label>
             <input
@@ -345,15 +344,30 @@ export default function App() {
               placeholder="Nombre y apellido"
             />
           </div>
+
+          {/* === Antigüedad: ahora con dropdown === */}
           <div className="field">
             <label>Antigüedad / 工龄:</label>
-            <input
-              type="text"
+            <select
               value={form.antiguedad}
               onChange={(e) => setField("antiguedad", e.target.value)}
-              placeholder="Ej. 2 años"
-            />
+            >
+              <option value="">Seleccione… / 请选择…</option>
+              <option value="Menos de 6 meses / 少于6个月">
+                Menos de 6 meses / 少于6个月
+              </option>
+              <option value="Menos de 1 año / 少于1年">
+                Menos de 1 año / 少于1年
+              </option>
+              <option value="Menos de 2 años / 少于2年">
+                Menos de 2 años / 少于2年
+              </option>
+              <option value="Más de 2 años / 多于2年">
+                Más de 2 años / 多于2年
+              </option>
+            </select>
           </div>
+
           <div className="field">
             <label>Área / 区域:</label>
             <input
@@ -363,6 +377,7 @@ export default function App() {
               placeholder="Área"
             />
           </div>
+
           <div className="field">
             <label>Supervisor / 主管:</label>
             <input
@@ -374,12 +389,17 @@ export default function App() {
           </div>
         </div>
 
-        {/* Acciones (sin "Guardar borrador") */}
+        {/* Acciones */}
         <div className="actions">
           <button onClick={guardarNube} className="secondary">
             Guardar en la nube / 云端保存
           </button>
-          <button onClick={() => { setForm(emptyForm()); setMsg(null); }}>
+          <button
+            onClick={() => {
+              setForm(emptyForm());
+              setMsg(null);
+            }}
+          >
             Limpiar formulario / 清空表单
           </button>
         </div>
