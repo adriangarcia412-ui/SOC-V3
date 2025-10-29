@@ -1,6 +1,5 @@
 /* =========================
-   SOC V3 - modern.css
-   (archivo completo)
+   SOC V3 - modern.css (completo)
    ========================= */
 
 /* ---- Reset/Base ---- */
@@ -34,21 +33,28 @@ html, body {
   padding: 0 16px;
 }
 
-/* ---- Encabezado (centrado con logo) ---- */
+/* ---- Encabezado ---- */
 .header { margin-bottom: 12px; }
-.brand-centered {
+
+/* Encabezado centrado con logo pequeño */
+.header-centered {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   text-align: center;
 }
-.logo-wrap img {
-  height: 42px;           /* tamaño controlado del logo */
-  max-width: 110px;       /* evita crecimientos inesperados */
-  width: auto;
+
+/* Ajuste DEFINITIVO del tamaño del logo pequeño */
+.brand-logo-small {
+  height: 42px !important;        /* ← tamaño del logo */
+  max-height: 42px !important;    /* fuerza el límite si el PNG es muy grande */
+  width: auto !important;
+  object-fit: contain;
   display: block;
 }
+
+/* Títulos */
 .title { margin: 0; color: var(--brand); font-weight: 800; }
 .subtitle, .subtitle-cn { margin: 0; color: var(--muted); }
 
@@ -83,10 +89,10 @@ html, body {
 .actions button:hover { background: var(--brand-700); border-color: var(--brand-700); }
 .actions .danger { background: #ffe7e7; color: #8a1f2d; border: 1px solid #f5c2c7; }
 
-/* Deshabilitado al enviar */
+/* Deshabilitado */
 .actions button[disabled] { opacity: 0.6; pointer-events: none; }
 
-/* ---- Mensajes / validación ---- */
+/* ---- Mensajes ---- */
 .ok {
   margin-top: 14px;
   padding: 10px 12px;
@@ -116,7 +122,8 @@ html, body {
 }
 .field { display: flex; flex-direction: column; gap: 6px; }
 .field label { font-weight: 700; }
-.field input, .field select {
+.field input,
+.field select {
   padding: 10px 12px;
   border: 1px solid #cbd5e1;
   border-radius: 8px;
@@ -146,24 +153,28 @@ html, body {
 }
 
 /* =========================================================
-   TABLA DE EVALUACIÓN (tabla real <table>)
+   TABLA DE EVALUACIÓN
    ========================================================= */
 
-.eval-wrapper { width: 100%; overflow-x: auto; }
+/* Tabla HTML con control de columnas via <colgroup> */
+.eval-wrapper { width: 100%; overflow: auto; }
 
-/* Forzamos layout fijo para respetar los anchos definidos */
 .eval-table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;    /* clave para que se cumplan los % */
+  table-layout: fixed;
 }
+
+/* Colgroup: item ancho y radios angostos */
+.eval-col-item   { width: 66%; }   /* más ancho para el texto del ítem */
+.eval-col-narrow { width: 8.5%; }  /* columnas Si/No más angostas */
 
 /* Encabezados */
 .eval-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #eff6ff;           /* azul muy claro */
+  background: #eff6ff;
   color: #0b3a82;
   font-weight: 800;
   text-align: center;
@@ -171,7 +182,7 @@ html, body {
   border-bottom: 2px solid var(--line-strong);
 }
 
-/* Cuerpo */
+/* Cuerpo: líneas y fondos */
 .eval-table td {
   border-bottom: 1px solid var(--line);
   background: #ffffff;
@@ -184,30 +195,22 @@ html, body {
   font-weight: 700;
   line-height: 1.35;
   padding: 2px 6px;
-  text-align: left;
 }
 
 /* Radios centrados */
 .eval-cell { text-align: center; }
 .eval-cell input[type="radio"] { width: 18px; height: 18px; }
 
-/* ---------- Anchos de columnas ---------- */
-/* Columna 1 (Ítem) = 68% */
-.eval-table th.item,
-.eval-table td.eval-item { width: 68%; }
-
-/* Columnas 2–5 (radios) = 8% cada una */
-.eval-table thead th:nth-child(2),
-.eval-table thead th:nth-child(3),
-.eval-table thead th:nth-child(4),
-.eval-table thead th:nth-child(5),
-.eval-table tbody td:nth-child(2),
-.eval-table tbody td:nth-child(3),
-.eval-table tbody td:nth-child(4),
-.eval-table tbody td:nth-child(5) { width: 8%; }
-
-/* Responsive: permitimos scroll horizontal si hiciera falta */
+/* Responsive */
 @media (max-width: 680px) {
-  .eval-wrapper { overflow-x: auto; }
-  .eval-table { min-width: 760px; }
+  .eval-col-item   { width: 64%; }
+  .eval-col-narrow { width: 9%; }
+  .eval-item .item-text { font-size: 15px; }
+}
+
+/* ---- Footer ---- */
+.footer {
+  margin: 24px 0 12px;
+  text-align: center;
+  color: var(--muted);
 }
