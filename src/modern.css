@@ -159,9 +159,11 @@ html, body {
   border-bottom: 2px solid var(--line-strong);
 }
 
-/* Anchos de columnas */
+/* ======= AJUSTE DE ANCHOS =======
+   Ítem más ancho y columnas Sí/No más estrechas
+*/
 .eval-table .thead .th.item,
-.eval-table .tbody .td.item     { width: 58%; }
+.eval-table .tbody .td.item     { width: 64%; }   /* antes 58% */
 
 .eval-table .thead .th:nth-child(2),
 .eval-table .thead .th:nth-child(3),
@@ -170,7 +172,7 @@ html, body {
 .eval-table .tbody .td:nth-child(2),
 .eval-table .tbody .td:nth-child(3),
 .eval-table .tbody .td:nth-child(4),
-.eval-table .tbody .td:nth-child(5) { width: 10.5%; }
+.eval-table .tbody .td:nth-child(5) { width: 9%; } /* antes 10.5% */
 
 /* Cuerpo: líneas y fondos */
 .eval-table .tbody .td {
@@ -195,6 +197,6 @@ html, body {
 @media (max-width: 680px) {
   .eval-table { overflow-x: auto; display: block; }
   .eval-table .thead .th.item,
-  .eval-table .tbody .td.item { width: 64%; }
+  .eval-table .tbody .td.item { width: 64%; } /* puedes subir a 68–70% si lo prefieres */
   .item-text { font-size: 15px; }
 }
