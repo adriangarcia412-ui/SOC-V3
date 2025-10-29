@@ -41,31 +41,6 @@ const emptyForm = () => ({
   evaluaciones: ITEMS.map(() => emptyRow()),
 });
 
-/* =============== LOGO HENGLI (robusto) =============== */
-const LOGO_CANDIDATES = [
-  "/hengli-logo.png",
-  "/hengli.png",
-  "/hengli.svg",
-  "/hengli-logo.svg",
-  "/images/hengli.png",
-  "/images/hengli-logo.png",
-  "/images/hengli.svg",
-];
-
-function Logo({ size = 44 }) {
-  const [idx, setIdx] = useState(0);
-  const src = LOGO_CANDIDATES[idx];
-  if (!src) return null;
-  return (
-    <img
-      src={src}
-      alt="Hengli"
-      style={{ height: size, width: "auto", display: "block", marginBottom: 10 }}
-      onError={() => setIdx((i) => i + 1)}
-    />
-  );
-}
-
 /* =====================================================
                       COMPONENTE
    ===================================================== */
@@ -74,7 +49,7 @@ export default function App() {
   const [pctInicial, setPctInicial] = useState(0);
   const [pctFinal, setPctFinal] = useState(0);
 
-  // Borradores locales (múltiples)
+  // Borradores locales (se dejó el soporte, aunque quitamos el botón)
   const [drafts, setDrafts] = useState([]);
 
   // Pendientes en la nube
@@ -117,51 +92,9 @@ export default function App() {
     });
   };
 
-  /* ===================== BORRADOR LOCAL (no visible) ===================== */
-  const guardarBorrador = () => {
-    const basicFilled =
-      (form.nombre || form.area || form.supervisor || form.fecha) &&
-      form.evaluaciones.length === ITEMS.length;
-
-    if (!basicFilled) {
-      setMsg({
-        type: "error",
-        text: "Completa datos básicos antes de guardar el borrador.",
-      });
-      return;
-    }
-
-    const id = form.id || `PEND-${uid(8)}`;
-    const nuevo = {
-      ...form,
-      id,
-      iso: nowISO(),
-      pctInicial,
-      pctFinal,
-    };
-
-    const next = (() => {
-      const exists = drafts.find((d) => d.id === id);
-      if (exists) {
-        return drafts.map((d) => (d.id === id ? nuevo : d));
-      }
-      return [nuevo, ...drafts];
-    })();
-
-    try {
-      localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(next));
-      setDrafts(next);
-      setForm((f) => ({ ...f, id }));
-      setMsg({ type: "ok", text: `Borrador guardado como ${id}` });
-    } catch {
-      setMsg({
-        type: "error",
-        text: "No se pudo guardar el borrador (almacenamiento local).",
-      });
-    }
-  };
-
-  /* ===================== NUBE (Apps Script) ===================== */
+  /* =====================================================
+                   NUBE (Apps Script)
+     ===================================================== */
   const guardarNube = async () => {
     try {
       const payload = {
@@ -248,7 +181,9 @@ export default function App() {
     listarNube();
   }, []);
 
-  /* ===================== ENVÍO A GOOGLE SHEETS ===================== */
+  /* =====================================================
+                    ENVÍO A GOOGLE SHEETS
+     ===================================================== */
   const enviar = async () => {
     const hayAlgo =
       form.evaluaciones.some((r) => r.inicial) ||
@@ -271,7 +206,7 @@ export default function App() {
       pctInicial,
       pctFinal,
       rows: form.evaluaciones,
-      items: ITEMS,
+      items: ITEMS, // para que el backend cree/llene columnas por ítem
     };
 
     try {
@@ -286,7 +221,7 @@ export default function App() {
       } else {
         setMsg({ type: "error", text: `No se pudo enviar. Respuesta: ${JSON.stringify(resp)}` });
       }
-    } catch (e) {
+    } catch {
       setMsg({ type: "error", text: "Error de red al enviar el caso." });
     }
   };
@@ -301,24 +236,19 @@ export default function App() {
     );
   }, [msg]);
 
-  /* ===================== RENDER ===================== */
+  /* =====================================================
+                          RENDER
+     ===================================================== */
   return (
     <div className="container">
       {/* Encabezado centrado con logo */}
-      <header
-        className="header"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          textAlign: "center",
-          marginBottom: 16,
-        }}
-      >
-        <Logo size={44} />
-        <h1 className="title">SOC V3</h1>
-        <p className="subtitle">Sistema de Observación de Comportamientos</p>
-        <p className="subtitle-cn">行为观察系统</p>
+      <header className="header header-centered">
+        <img src="/hengli-logo.png" alt="Hengli" className="brand-logo-small" />
+        <div className="brand-centered">
+          <h1 className="title">SOC V3</h1>
+          <p className="subtitle">Sistema de Observación de Comportamientos</p>
+          <p className="subtitle-cn">行为观察系统</p>
+        </div>
       </header>
 
       {/* Información del empleado */}
@@ -345,7 +275,7 @@ export default function App() {
             />
           </div>
 
-          {/* === Antigüedad: ahora con dropdown === */}
+          {/* Antigüedad con menú desplegable bilingüe */}
           <div className="field">
             <label>Antigüedad / 工龄:</label>
             <select
@@ -353,18 +283,10 @@ export default function App() {
               onChange={(e) => setField("antiguedad", e.target.value)}
             >
               <option value="">Seleccione… / 请选择…</option>
-              <option value="Menos de 6 meses / 少于6个月">
-                Menos de 6 meses / 少于6个月
-              </option>
-              <option value="Menos de 1 año / 少于1年">
-                Menos de 1 año / 少于1年
-              </option>
-              <option value="Menos de 2 años / 少于2年">
-                Menos de 2 años / 少于2年
-              </option>
-              <option value="Más de 2 años / 多于2年">
-                Más de 2 años / 多于2年
-              </option>
+              <option value="&lt;6m">Menos de 6 meses / 少于6个月</option>
+              <option value="&lt;1y">Menos de 1 año / 少于1年</option>
+              <option value="&lt;2y">Menos de 2 años / 少于2年</option>
+              <option value="&gt;=2y">Más de 2 años / 多于2年</option>
             </select>
           </div>
 
@@ -389,17 +311,12 @@ export default function App() {
           </div>
         </div>
 
-        {/* Acciones */}
+        {/* Acciones: sin “Guardar borrador”, botones bilingües */}
         <div className="actions">
           <button onClick={guardarNube} className="secondary">
             Guardar en la nube / 云端保存
           </button>
-          <button
-            onClick={() => {
-              setForm(emptyForm());
-              setMsg(null);
-            }}
-          >
+          <button onClick={() => { setForm(emptyForm()); setMsg(null); }}>
             Limpiar formulario / 清空表单
           </button>
         </div>
@@ -416,6 +333,15 @@ export default function App() {
 
         <div className="eval-wrapper">
           <table className="eval-table">
+            {/* Control fino de anchos de columna */}
+            <colgroup>
+              <col className="eval-col-item" />
+              <col className="eval-col-narrow" />
+              <col className="eval-col-narrow" />
+              <col className="eval-col-narrow" />
+              <col className="eval-col-narrow" />
+            </colgroup>
+
             <thead>
               <tr>
                 <th>Ítem / 项目</th>
@@ -425,6 +351,7 @@ export default function App() {
                 <th>Final No / 最终否</th>
               </tr>
             </thead>
+
             <tbody>
               {ITEMS.map((txt, idx) => {
                 const r = form.evaluaciones[idx];
@@ -435,6 +362,7 @@ export default function App() {
                     <td className="eval-item">
                       <div className="item-text">{txt}</div>
                     </td>
+
                     <td className="eval-cell">
                       <input
                         type="radio"
@@ -443,6 +371,7 @@ export default function App() {
                         onChange={() => updateEval(idx, "inicial", "SI")}
                       />
                     </td>
+
                     <td className="eval-cell">
                       <input
                         type="radio"
@@ -451,6 +380,7 @@ export default function App() {
                         onChange={() => updateEval(idx, "inicial", "NO")}
                       />
                     </td>
+
                     <td className="eval-cell">
                       <input
                         type="radio"
@@ -459,6 +389,7 @@ export default function App() {
                         onChange={() => updateEval(idx, "final", "SI")}
                       />
                     </td>
+
                     <td className="eval-cell">
                       <input
                         type="radio"
@@ -491,10 +422,9 @@ export default function App() {
         </div>
       </section>
 
-      {/* Casos pendientes (locales) */}
+      {/* Pendientes locales (UI mantenida, sin botón de crear borrador) */}
       <section className="card">
         <h2>Casos pendientes (guardados localmente)</h2>
-
         {drafts.length === 0 ? (
           <div className="hint">No hay pendientes.</div>
         ) : (
@@ -518,8 +448,29 @@ export default function App() {
                 <div className="col area">{d.area || "-"}</div>
                 <div className="col boss">{d.supervisor || "-"}</div>
                 <div className="col act">
-                  <button onClick={() => reanudarLocal(d)}>Reanudar</button>
-                  <button className="danger" onClick={() => eliminarLocal(d.id)}>
+                  <button onClick={() => {
+                    setForm({
+                      id: d.id,
+                      fecha: d.fecha || "",
+                      nombre: d.nombre || "",
+                      antiguedad: d.antiguedad || "",
+                      area: d.area || "",
+                      supervisor: d.supervisor || "",
+                      evaluaciones:
+                        Array.isArray(d.evaluaciones) && d.evaluaciones.length === ITEMS.length
+                          ? d.evaluaciones
+                          : ITEMS.map(() => emptyRow()),
+                    });
+                    setMsg({ type: "ok", text: `Reanudando caso ${d.id}` });
+                  }}>
+                    Reanudar
+                  </button>
+                  <button className="danger" onClick={() => {
+                    const next = drafts.filter((x) => x.id !== d.id);
+                    localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(next));
+                    setDrafts(next);
+                    if (form.id === d.id) setForm(emptyForm());
+                  }}>
                     Eliminar
                   </button>
                 </div>
