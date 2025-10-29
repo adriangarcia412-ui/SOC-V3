@@ -32,7 +32,7 @@ const percent = (num, den) => {
 /* =============== MODELOS =============== */
 const emptyRow = () => ({ inicial: "", final: "" }); // "SI" | "NO" | ""
 const emptyForm = () => ({
-  id: "", // se llena al guardar como borrador local
+  id: "",
   fecha: "",
   nombre: "",
   antiguedad: "",
@@ -40,6 +40,32 @@ const emptyForm = () => ({
   supervisor: "",
   evaluaciones: ITEMS.map(() => emptyRow()),
 });
+
+/* =============== LOGO HENGLI (robusto) =============== */
+// Prioriza el archivo que tienes en public/: /hengli-logo.png
+const LOGO_CANDIDATES = [
+  "/hengli-logo.png",
+  "/hengli.png",
+  "/hengli.svg",
+  "/hengli-logo.svg",
+  "/images/hengli.png",
+  "/images/hengli-logo.png",
+  "/images/hengli.svg",
+];
+
+function Logo({ size = 44 }) {
+  const [idx, setIdx] = useState(0);
+  const src = LOGO_CANDIDATES[idx];
+  if (!src) return null;
+  return (
+    <img
+      src={src}
+      alt="Hengli"
+      style={{ height: size, width: "auto", display: "block", marginBottom: 10 }}
+      onError={() => setIdx((i) => i + 1)}
+    />
+  );
+}
 
 /* =====================================================
                       COMPONENTE
@@ -82,7 +108,6 @@ export default function App() {
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   const updateEval = (rowIndex, columna, value) => {
-    // columna: "inicial" | "final"; value: "SI" | "NO"
     setForm((f) => {
       const copia = structuredClone(f.evaluaciones);
       const row = { ...copia[rowIndex] };
@@ -93,9 +118,7 @@ export default function App() {
     });
   };
 
-  /* =====================================================
-                    BORRADOR LOCAL
-     ===================================================== */
+  /* ===================== BORRADOR LOCAL ===================== */
   const guardarBorrador = () => {
     const basicFilled =
       (form.nombre || form.area || form.supervisor || form.fecha) &&
@@ -162,11 +185,7 @@ export default function App() {
     if (form.id === id) setForm(emptyForm());
   };
 
-  /* =====================================================
-                   NUBE (Apps Script)
-     ===================================================== */
-
-  // Guardar en la nube (pendiente)
+  /* ===================== NUBE (Apps Script) ===================== */
   const guardarNube = async () => {
     try {
       const payload = {
@@ -178,18 +197,13 @@ export default function App() {
         supervisor: form.supervisor,
         pctInicial,
         pctFinal,
-        // El JSON del formulario para poder reanudar en otro dispositivo
-        json: JSON.stringify({
-          ...form,
-          pctInicial,
-          pctFinal,
-        }),
+        json: JSON.stringify({ ...form, pctInicial, pctFinal }),
       };
       const resp = await postJSON(API_URL, payload);
       if (resp?.ok) {
         setForm((f) => ({ ...f, id: payload.id }));
         setMsg({ type: "ok", text: `Guardado en la nube: ${payload.id}` });
-        await listarNube(); // refresca listado
+        await listarNube();
       } else {
         setMsg({ type: "error", text: `No se pudo guardar en la nube: ${JSON.stringify(resp)}` });
       }
@@ -198,13 +212,11 @@ export default function App() {
     }
   };
 
-  // Listar pendientes en la nube
   const listarNube = async () => {
     try {
       setLoadingCloud(true);
       const resp = await postJSON(API_URL, { action: "LIST_PENDING" });
       if (resp?.ok && Array.isArray(resp.rows)) {
-        // Ordena por fecha iso descendente si viene
         const sorted = [...resp.rows].sort((a, b) =>
           String(b.iso || "").localeCompare(String(a.iso || ""))
         );
@@ -219,14 +231,12 @@ export default function App() {
     }
   };
 
-  // Eliminar de la nube
   const eliminarNube = async (id) => {
     try {
       const resp = await postJSON(API_URL, { action: "DELETE_PENDING", id });
       if (resp?.ok) {
         setMsg({ type: "ok", text: `Eliminado de la nube: ${id}` });
         await listarNube();
-        // Si estás editando ese mismo id, no lo borres de la vista, solo avisa
       } else {
         setMsg({ type: "error", text: `No se pudo eliminar: ${JSON.stringify(resp)}` });
       }
@@ -235,7 +245,6 @@ export default function App() {
     }
   };
 
-  // Reanudar desde la nube (carga json guardado)
   const reanudarNube = async (row) => {
     try {
       const raw = row?.json || "{}";
@@ -259,14 +268,11 @@ export default function App() {
     }
   };
 
-  // Cargar la nube al entrar
   useEffect(() => {
     listarNube();
   }, []);
 
-  /* =====================================================
-                    ENVÍO A GOOGLE SHEETS
-     ===================================================== */
+  /* ===================== ENVÍO A GOOGLE SHEETS ===================== */
   const enviar = async () => {
     const hayAlgo =
       form.evaluaciones.some((r) => r.inicial) ||
@@ -288,27 +294,21 @@ export default function App() {
       supervisor: form.supervisor,
       pctInicial,
       pctFinal,
-      // Respuestas fila por fila
       rows: form.evaluaciones,
-      // *** NUEVO: textos de los ítems para que el backend cree/llene las columnas por ítem ***
-      items: ITEMS,
+      items: ITEMS, // para que el backend cree/llene columnas por ítem
     };
 
     try {
       const resp = await postJSON(API_URL, payload);
       if (resp?.ok) {
         setMsg({ type: "ok", text: "Caso enviado a Google Sheets correctamente." });
-        // Si este ID existía en la nube, lo eliminamos para no duplicar pendientes
         try {
           await postJSON(API_URL, { action: "DELETE_PENDING", id: payload.id });
           await listarNube();
         } catch {}
         setForm(emptyForm());
       } else {
-        setMsg({
-          type: "error",
-          text: `No se pudo enviar. Respuesta: ${JSON.stringify(resp)}`,
-        });
+        setMsg({ type: "error", text: `No se pudo enviar. Respuesta: ${JSON.stringify(resp)}` });
       }
     } catch (e) {
       setMsg({ type: "error", text: "Error de red al enviar el caso." });
@@ -325,12 +325,10 @@ export default function App() {
     );
   }, [msg]);
 
-  /* =====================================================
-                          RENDER
-     ===================================================== */
+  /* ===================== RENDER ===================== */
   return (
     <div className="container">
-      {/* Encabezado */}
+      {/* Encabezado centrado con logo pequeño */}
       <header
         className="header"
         style={{
@@ -341,17 +339,7 @@ export default function App() {
           marginBottom: 16,
         }}
       >
-        <img
-          src="/images/hengli-logo.png"
-          alt="Hengli"
-          className="brand-logo"
-          style={{ width: 80, height: "auto", marginBottom: 8 }}
-          onError={(e) => {
-            // Fallback al SVG si el PNG no se encuentra
-            e.currentTarget.onerror = null;
-            e.currentTarget.src = "/hengli-logo.svg";
-          }}
-        />
+        <Logo size={44} />
         <h1 className="title">SOC V3</h1>
         <p className="subtitle">Sistema de Observación de Comportamientos</p>
         <p className="subtitle-cn">行为观察系统</p>
@@ -429,7 +417,6 @@ export default function App() {
           Marca solo <b>una</b> opción por columna (Inicial o Final) en cada fila.
         </p>
 
-        {/* Tabla semántica con layout fijo ya definido en modern.css */}
         <div className="eval-wrapper">
           <table className="eval-table">
             <thead>
@@ -451,7 +438,6 @@ export default function App() {
                     <td className="eval-item">
                       <div className="item-text">{txt}</div>
                     </td>
-
                     <td className="eval-cell">
                       <input
                         type="radio"
@@ -460,7 +446,6 @@ export default function App() {
                         onChange={() => updateEval(idx, "inicial", "SI")}
                       />
                     </td>
-
                     <td className="eval-cell">
                       <input
                         type="radio"
@@ -469,7 +454,6 @@ export default function App() {
                         onChange={() => updateEval(idx, "inicial", "NO")}
                       />
                     </td>
-
                     <td className="eval-cell">
                       <input
                         type="radio"
@@ -478,7 +462,6 @@ export default function App() {
                         onChange={() => updateEval(idx, "final", "SI")}
                       />
                     </td>
-
                     <td className="eval-cell">
                       <input
                         type="radio"
