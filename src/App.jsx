@@ -1,24 +1,21 @@
 import React, { useEffect, useMemo, useState } from "react";
 import "./modern.css";
-// Importa helpers y URL centralizada
+// helpers centralizados
 import { API_URL, postJSON } from "./config";
 
 /* =============== CONFIG & KEYS ================= */
-const STORAGE_KEY_DRAFTS = "soc_v3_drafts_v2"; // v2 para evitar colisión con versiones anteriores
+const STORAGE_KEY_DRAFTS = "soc_v3_drafts_v2";
 
 /* =============== UTILIDADES ================= */
 const uid = (len = 6) => Math.random().toString(36).slice(2, 2 + len);
 const nowISO = () => new Date().toISOString();
-
 function percent(num, den) {
   if (!den) return 0;
   const p = Math.round((num / den) * 100);
   return Number.isFinite(p) ? p : 0;
 }
 
-/* =============== ÍTEMS =================
-   Si en algún momento quieres editar los ítems, hazlo aquí.
-*/
+/* =============== ÍTEMS ================= */
 const ITEMS = [
   "Usa herramientas adecuadas para la tarea / 使用适当的工具完成任务",
   "Se usan los equipos de manera segura, sin improvisaciones / 安全使用设备，无即兴操作",
@@ -32,10 +29,10 @@ const ITEMS = [
   "Verifica el estado de sus herramientas / 工具设备点检完好",
 ];
 
-/* =============== MODELO DE FORMULARIO =============== */
+/* =============== MODELO =============== */
 const emptyRow = () => ({ inicial: "", final: "" }); // "SI" | "NO" | ""
 const emptyForm = () => ({
-  id: "", // se llena cuando guardas borrador
+  id: "",
   fecha: "",
   nombre: "",
   antiguedad: "",
@@ -47,16 +44,15 @@ const emptyForm = () => ({
 /* =====================================================
                       COMPONENTE
    ===================================================== */
-
 export default function App() {
   const [form, setForm] = useState(emptyForm());
   const [pctInicial, setPctInicial] = useState(0);
   const [pctFinal, setPctFinal] = useState(0);
 
-  const [drafts, setDrafts] = useState([]); // lista de borradores (múltiples)
-  const [msg, setMsg] = useState(null); // mensajes cortos tipo ok/error
+  const [drafts, setDrafts] = useState([]);
+  const [msg, setMsg] = useState(null);
 
-  /* ---------- cargar drafts del localStorage ---------- */
+  /* cargar borradores */
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_DRAFTS);
@@ -67,7 +63,7 @@ export default function App() {
     }
   }, []);
 
-  /* ---------- recálculo de % inicial/final ---------- */
+  /* % inicial/final */
   useEffect(() => {
     const total = form.evaluaciones.length;
     const siInicial = form.evaluaciones.filter((r) => r.inicial === "SI").length;
@@ -76,28 +72,21 @@ export default function App() {
     setPctFinal(percent(siFinal, total));
   }, [form.evaluaciones]);
 
-  /* ---------- handlers de inputs ---------- */
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Selección por columna (inicial/final) con exclusión por fila
+  // selección con exclusión por columna en cada fila
   const updateEval = (rowIndex, columna, value) => {
-    // columna: "inicial" | "final"; value: "SI" | "NO"
     setForm((f) => {
       const copia = structuredClone(f.evaluaciones);
       const row = { ...copia[rowIndex] };
-
-      if (columna === "inicial") {
-        row.inicial = value;
-      } else {
-        row.final = value;
-      }
-
+      if (columna === "inicial") row.inicial = value;
+      else row.final = value;
       copia[rowIndex] = row;
       return { ...f, evaluaciones: copia };
     });
   };
 
-  /* ---------- guardar borrador (acumula múltiples) ---------- */
+  /* guardar borrador (acumula) */
   const guardarBorrador = () => {
     const basicFilled =
       (form.nombre || form.area || form.supervisor || form.fecha) &&
@@ -119,24 +108,20 @@ export default function App() {
 
     const next = (() => {
       const exists = drafts.find((d) => d.id === id);
-      if (exists) {
-        // reemplaza por ID
-        return drafts.map((d) => (d.id === id ? nuevo : d));
-      }
+      if (exists) return drafts.map((d) => (d.id === id ? nuevo : d));
       return [nuevo, ...drafts];
     })();
 
     try {
       localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(next));
       setDrafts(next);
-      setForm((f) => ({ ...f, id })); // conservar ID para futuras ediciones
+      setForm((f) => ({ ...f, id }));
       setMsg({ type: "ok", text: `Borrador guardado como ${id}` });
     } catch {
       setMsg({ type: "error", text: "No se pudo guardar el borrador (almacenamiento local)." });
     }
   };
 
-  /* ---------- reanudar borrador ---------- */
   const reanudar = (draft) => {
     setForm({
       id: draft.id,
@@ -153,20 +138,14 @@ export default function App() {
     setMsg({ type: "ok", text: `Reanudando caso ${draft.id}` });
   };
 
-  /* ---------- eliminar borrador de la lista ---------- */
   const eliminarDraft = (id) => {
     const next = drafts.filter((d) => d.id !== id);
     localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(next));
     setDrafts(next);
-    // si estabas editando ese mismo borrador, limpia el form
-    if (form.id === id) {
-      setForm(emptyForm());
-    }
+    if (form.id === id) setForm(emptyForm());
   };
 
-  /* ---------- enviar a Google Sheets (cerrar caso) ---------- */
   const enviar = async () => {
-    // Validación mínima: debe haber al menos 1 selección en alguna columna
     const hayAlgo =
       form.evaluaciones.some((r) => r.inicial) ||
       form.evaluaciones.some((r) => r.final);
@@ -187,30 +166,23 @@ export default function App() {
       supervisor: form.supervisor,
       pctInicial,
       pctFinal,
-      rows: form.evaluaciones, // [{inicial:"SI|NO|", final:"SI|NO|"}...]
+      rows: form.evaluaciones,
     };
 
     try {
       const resp = await postJSON(API_URL, payload);
       if (resp?.ok) {
         setMsg({ type: "ok", text: "Caso enviado a Google Sheets correctamente." });
-        // si provenía de un borrador, bórralo de la lista
-        if (form.id) {
-          eliminarDraft(form.id);
-        }
+        if (form.id) eliminarDraft(form.id);
         setForm(emptyForm());
       } else {
-        setMsg({
-          type: "error",
-          text: `No se pudo enviar. Respuesta: ${JSON.stringify(resp)}`,
-        });
+        setMsg({ type: "error", text: `No se pudo enviar. Respuesta: ${JSON.stringify(resp)}` });
       }
-    } catch (e) {
+    } catch {
       setMsg({ type: "error", text: "Error de red al enviar el caso." });
     }
   };
 
-  /* ---------- UI helpers ---------- */
   const Msg = useMemo(() => {
     if (!msg) return null;
     return (
@@ -220,9 +192,7 @@ export default function App() {
     );
   }, [msg]);
 
-  /* =====================================================
-                          RENDER
-     ===================================================== */
+  /* ============================== RENDER ============================== */
   return (
     <div className="container">
       {/* Encabezado */}
@@ -299,74 +269,79 @@ export default function App() {
         {Msg}
       </section>
 
-      {/* Evaluación */}
+      {/* Evaluación (TABLA REAL) */}
       <section className="card">
         <h2>Evaluación / 评估</h2>
-        <p className="hint">Marca solo <b>una</b> opción por columna (Inicial o Final) en cada fila.</p>
+        <p className="hint">
+          Marca solo <b>una</b> opción por columna (Inicial o Final) en cada fila.
+        </p>
 
-        <div className="eval-table">
-          <div className="thead">
-            <div className="th item">Ítem / 项目</div>
-            <div className="th">Inicial Sí / 初始是</div>
-            <div className="th">Inicial No / 初始否</div>
-            <div className="th">Final Sí / 最终是</div>
-            <div className="th">Final No / 最终否</div>
-          </div>
+        <div className="eval-wrapper">
+          <table className="eval-table">
+            <thead>
+              <tr>
+                <th style={{ textAlign: "left" }}>Ítem / 项目</th>
+                <th>Inicial Sí / 初始是</th>
+                <th>Inicial No / 初始否</th>
+                <th>Final Sí / 最终是</th>
+                <th>Final No / 最终否</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ITEMS.map((txt, idx) => {
+                const r = form.evaluaciones[idx];
+                const isI = r?.inicial || "";
+                const isF = r?.final || "";
+                return (
+                  <tr key={idx}>
+                    <td className="eval-item">
+                      <div className="item-text">{txt}</div>
+                    </td>
 
-          <div className="tbody">
-            {ITEMS.map((txt, idx) => {
-              const r = form.evaluaciones[idx];
-              const isI = r?.inicial || "";
-              const isF = r?.final || "";
-              return (
-                <div className="tr" key={idx}>
-                  <div className="td item">
-                    <div className="item-text">{txt}</div>
-                  </div>
+                    {/* Inicial Sí */}
+                    <td className="eval-cell">
+                      <input
+                        type="radio"
+                        name={`r${idx}-inicial`}
+                        checked={isI === "SI"}
+                        onChange={() => updateEval(idx, "inicial", "SI")}
+                      />
+                    </td>
 
-                  {/* Inicial Sí */}
-                  <div className="td radio">
-                    <input
-                      type="radio"
-                      name={`r${idx}-inicial`}
-                      checked={isI === "SI"}
-                      onChange={() => updateEval(idx, "inicial", "SI")}
-                    />
-                  </div>
+                    {/* Inicial No */}
+                    <td className="eval-cell">
+                      <input
+                        type="radio"
+                        name={`r${idx}-inicial`}
+                        checked={isI === "NO"}
+                        onChange={() => updateEval(idx, "inicial", "NO")}
+                      />
+                    </td>
 
-                  {/* Inicial No */}
-                  <div className="td radio">
-                    <input
-                      type="radio"
-                      name={`r${idx}-inicial`}
-                      checked={isI === "NO"}
-                      onChange={() => updateEval(idx, "inicial", "NO")}
-                    />
-                  </div>
+                    {/* Final Sí */}
+                    <td className="eval-cell">
+                      <input
+                        type="radio"
+                        name={`r${idx}-final`}
+                        checked={isF === "SI"}
+                        onChange={() => updateEval(idx, "final", "SI")}
+                      />
+                    </td>
 
-                  {/* Final Sí */}
-                  <div className="td radio">
-                    <input
-                      type="radio"
-                      name={`r${idx}-final`}
-                      checked={isF === "SI"}
-                      onChange={() => updateEval(idx, "final", "SI")}
-                    />
-                  </div>
-
-                  {/* Final No */}
-                  <div className="td radio">
-                    <input
-                      type="radio"
-                      name={`r${idx}-final`}
-                      checked={isF === "NO"}
-                      onChange={() => updateEval(idx, "final", "NO")}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                    {/* Final No */}
+                    <td className="eval-cell">
+                      <input
+                        type="radio"
+                        name={`r${idx}-final`}
+                        checked={isF === "NO"}
+                        onChange={() => updateEval(idx, "final", "NO")}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
         {/* Resumen */}
@@ -386,7 +361,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* Casos pendientes (locales) */}
+      {/* Casos pendientes */}
       <section className="card">
         <h2>Casos pendientes (guardados localmente)</h2>
 
@@ -406,7 +381,9 @@ export default function App() {
             {drafts.map((d) => (
               <div className="pending-row" key={d.id}>
                 <div className="col id">{d.id}</div>
-                <div className="col when">{new Date(d.iso || d.ts || Date.now()).toLocaleString()}</div>
+                <div className="col when">
+                  {new Date(d.iso || d.ts || Date.now()).toLocaleString()}
+                </div>
                 <div className="col who">{d.nombre || "-"}</div>
                 <div className="col area">{d.area || "-"}</div>
                 <div className="col boss">{d.supervisor || "-"}</div>
@@ -420,7 +397,6 @@ export default function App() {
         )}
       </section>
 
-      {/* Footer */}
       <footer className="footer">
         <span>Hengli · SOC V3</span>
       </footer>
