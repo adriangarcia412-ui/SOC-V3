@@ -331,15 +331,30 @@ export default function App() {
   return (
     <div className="container">
       {/* Encabezado */}
-      <header className="header">
-        <div className="brand">
-          <img src="/hengli-logo.svg" alt="Hengli" className="brand-logo" />
-          <div>
-            <h1 className="title">SOC V3</h1>
-            <p className="subtitle">Sistema de Observación de Comportamientos</p>
-            <p className="subtitle-cn">行为观察系统</p>
-          </div>
-        </div>
+      <header
+        className="header"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          textAlign: "center",
+          marginBottom: 16,
+        }}
+      >
+        <img
+          src="/images/hengli-logo.png"
+          alt="Hengli"
+          className="brand-logo"
+          style={{ width: 80, height: "auto", marginBottom: 8 }}
+          onError={(e) => {
+            // Fallback al SVG si el PNG no se encuentra
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = "/hengli-logo.svg";
+          }}
+        />
+        <h1 className="title">SOC V3</h1>
+        <p className="subtitle">Sistema de Observación de Comportamientos</p>
+        <p className="subtitle-cn">行为观察系统</p>
       </header>
 
       {/* Información del empleado */}
@@ -407,7 +422,7 @@ export default function App() {
         {Msg}
       </section>
 
-        {/* Evaluación */}
+      {/* Evaluación */}
       <section className="card">
         <h2>Evaluación / 评估</h2>
         <p className="hint">
