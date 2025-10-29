@@ -1,19 +1,10 @@
+// src/App.jsx
 import React, { useEffect, useMemo, useState } from "react";
 import "./modern.css";
 import { API_URL, postJSON } from "./config";
 
-/* =============== CONFIG & KEYS ================= */
-const STORAGE_KEY_DRAFTS = "soc_v3_drafts_v2"; // v2 para evitar colisión con versiones anteriores
-
-/* =============== UTILIDADES ================= */
-const uid = (len = 6) => Math.random().toString(36).slice(2, 2 + len);
-const nowISO = () => new Date().toISOString();
-
-function percent(num, den) {
-  if (!den) return 0;
-  const p = Math.round((num / den) * 100);
-  return Number.isFinite(p) ? p : 0;
-}
+/* =============== CLAVES / STORAGE ================= */
+const STORAGE_KEY_DRAFTS = "soc_v3_drafts_v2";
 
 /* =============== ÍTEMS ================= */
 const ITEMS = [
@@ -29,11 +20,19 @@ const ITEMS = [
   "Verifica el estado de sus herramientas / 工具设备点检完好",
 ];
 
-/* =============== MODELO DE FORMULARIO =============== */
+/* =============== UTILIDADES ================= */
+const uid = (len = 6) => Math.random().toString(36).slice(2, 2 + len);
+const nowISO = () => new Date().toISOString();
+const percent = (num, den) => {
+  if (!den) return 0;
+  const p = Math.round((num / den) * 100);
+  return Number.isFinite(p) ? p : 0;
+};
+
+/* =============== MODELOS =============== */
 const emptyRow = () => ({ inicial: "", final: "" }); // "SI" | "NO" | ""
 const emptyForm = () => ({
-  id: "",        // ID local (borrador local)
-  cloudId: "",   // ID en la nube (pendiente Apps Script)
+  id: "", // se llena al guardar como borrador local
   fecha: "",
   nombre: "",
   antiguedad: "",
@@ -43,7 +42,7 @@ const emptyForm = () => ({
 });
 
 /* =====================================================
-                        COMPONENTE
+                      COMPONENTE
    ===================================================== */
 export default function App() {
   const [form, setForm] = useState(emptyForm());
@@ -54,10 +53,9 @@ export default function App() {
   const [drafts, setDrafts] = useState([]);
 
   // Pendientes en la nube
-  const [cloudPendings, setCloudPendings] = useState([]);
-  const [cloudLoading, setCloudLoading] = useState(false);
+  const [cloud, setCloud] = useState([]);
+  const [loadingCloud, setLoadingCloud] = useState(false);
 
-  // Mensajes
   const [msg, setMsg] = useState(null);
 
   /* ---------- cargar drafts del localStorage ---------- */
@@ -71,11 +69,6 @@ export default function App() {
     }
   }, []);
 
-  /* ---------- cargar lista nube al montar ---------- */
-  useEffect(() => {
-    fetchCloudPendings();
-  }, []);
-
   /* ---------- recálculo de % inicial/final ---------- */
   useEffect(() => {
     const total = form.evaluaciones.length;
@@ -85,11 +78,11 @@ export default function App() {
     setPctFinal(percent(siFinal, total));
   }, [form.evaluaciones]);
 
-  /* ---------- handlers básicos ---------- */
+  /* ---------- helpers de UI ---------- */
   const setField = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Selección por columna (inicial/final) con exclusión por fila
   const updateEval = (rowIndex, columna, value) => {
+    // columna: "inicial" | "final"; value: "SI" | "NO"
     setForm((f) => {
       const copia = structuredClone(f.evaluaciones);
       const row = { ...copia[rowIndex] };
@@ -100,133 +93,55 @@ export default function App() {
     });
   };
 
-  /* ---------- guardar borrador (LOCAL, múltiples) ---------- */
+  /* =====================================================
+                    BORRADOR LOCAL
+     ===================================================== */
   const guardarBorrador = () => {
     const basicFilled =
       (form.nombre || form.area || form.supervisor || form.fecha) &&
       form.evaluaciones.length === ITEMS.length;
 
     if (!basicFilled) {
-      setMsg({ type: "error", text: "Completa datos básicos antes de guardar el borrador." });
+      setMsg({
+        type: "error",
+        text: "Completa datos básicos antes de guardar el borrador.",
+      });
       return;
     }
 
     const id = form.id || `PEND-${uid(8)}`;
-    const nuevo = { ...form, id, iso: nowISO(), pctInicial, pctFinal };
+    const nuevo = {
+      ...form,
+      id,
+      iso: nowISO(),
+      pctInicial,
+      pctFinal,
+    };
 
     const next = (() => {
       const exists = drafts.find((d) => d.id === id);
-      if (exists) return drafts.map((d) => (d.id === id ? nuevo : d));
+      if (exists) {
+        return drafts.map((d) => (d.id === id ? nuevo : d));
+      }
       return [nuevo, ...drafts];
     })();
 
     try {
       localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(next));
       setDrafts(next);
-      setForm((f) => ({ ...f, id })); // conservar ID local
+      setForm((f) => ({ ...f, id }));
       setMsg({ type: "ok", text: `Borrador guardado como ${id}` });
     } catch {
-      setMsg({ type: "error", text: "No se pudo guardar el borrador (almacenamiento local)." });
-    }
-  };
-
-  /* ---------- NUBE: guardar pendiente en Apps Script ---------- */
-  const savePendingToCloud = async () => {
-    const basicFilled =
-      (form.nombre || form.area || form.supervisor || form.fecha) &&
-      form.evaluaciones.length === ITEMS.length;
-
-    if (!basicFilled) {
-      setMsg({ type: "error", text: "Completa datos básicos antes de guardar en la nube." });
-      return;
-    }
-
-    try {
-      setCloudLoading(true);
-      const payload = {
-        action: "SAVE_PENDING",
-        ts: nowISO(),
-        id: form.cloudId || `CLOUD-${uid(10)}`,
-        nombre: form.nombre || "",
-        area: form.area || "",
-        supervisor: form.supervisor || "",
-        pctInicial,
-        pctFinal,
-        json: JSON.stringify({ ...form, cloudId: form.cloudId || "" }),
-      };
-      const resp = await postJSON(API_URL, payload);
-      if (resp?.ok) {
-        setForm((f) => ({ ...f, cloudId: payload.id }));
-        setMsg({ type: "ok", text: `Guardado en la nube como ${payload.id}` });
-        await fetchCloudPendings();
-      } else {
-        setMsg({ type: "error", text: `No se pudo guardar en nube: ${JSON.stringify(resp)}` });
-      }
-    } catch {
-      setMsg({ type: "error", text: "Error de red al guardar en la nube." });
-    } finally {
-      setCloudLoading(false);
-    }
-  };
-
-  /* ---------- NUBE: listar pendientes ---------- */
-  const fetchCloudPendings = async () => {
-    try {
-      setCloudLoading(true);
-      const resp = await postJSON(API_URL, { action: "LIST_PENDING" });
-      if (resp?.ok && Array.isArray(resp.rows)) setCloudPendings(resp.rows);
-      else setCloudPendings([]);
-    } catch {
-      setCloudPendings([]);
-    } finally {
-      setCloudLoading(false);
-    }
-  };
-
-  /* ---------- NUBE: reanudar pendiente ---------- */
-  const resumeCloudPending = (p) => {
-    try {
-      const parsed = p?.json ? JSON.parse(p.json) : null;
-      if (!parsed) throw new Error("Sin JSON de formulario.");
-      setForm({
-        ...emptyForm(),
-        ...parsed,
-        cloudId: p.id,
-        evaluaciones:
-          Array.isArray(parsed.evaluaciones) && parsed.evaluaciones.length === ITEMS.length
-            ? parsed.evaluaciones
-            : ITEMS.map(() => emptyRow()),
+      setMsg({
+        type: "error",
+        text: "No se pudo guardar el borrador (almacenamiento local).",
       });
-      setMsg({ type: "ok", text: `Reanudando caso nube ${p.id}` });
-    } catch {
-      setMsg({ type: "error", text: "No se pudo reanudar: JSON inválido." });
     }
   };
 
-  /* ---------- NUBE: eliminar pendiente ---------- */
-  const deleteCloudPending = async (id) => {
-    try {
-      setCloudLoading(true);
-      const resp = await postJSON(API_URL, { action: "DELETE_PENDING", id });
-      if (resp?.ok) {
-        setMsg({ type: "ok", text: `Pendiente ${id} eliminado de la nube.` });
-        await fetchCloudPendings();
-        if (form.cloudId === id) setForm(emptyForm());
-      } else {
-        setMsg({ type: "error", text: `No se pudo eliminar: ${JSON.stringify(resp)}` });
-      }
-    } catch {
-      setMsg({ type: "error", text: "Error de red al eliminar pendiente." });
-    } finally {
-      setCloudLoading(false);
-    }
-  };
-
-  /* ---------- reanudar/eliminar borrador local ---------- */
-  const reanudar = (draft) => {
+  const reanudarLocal = (draft) => {
     setForm({
       id: draft.id,
-      cloudId: draft.cloudId || "",
       fecha: draft.fecha || "",
       nombre: draft.nombre || "",
       antiguedad: draft.antiguedad || "",
@@ -239,14 +154,119 @@ export default function App() {
     });
     setMsg({ type: "ok", text: `Reanudando caso ${draft.id}` });
   };
-  const eliminarDraft = (id) => {
+
+  const eliminarLocal = (id) => {
     const next = drafts.filter((d) => d.id !== id);
     localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(next));
     setDrafts(next);
     if (form.id === id) setForm(emptyForm());
   };
 
-  /* ---------- enviar a Google Sheets (cerrar caso) ---------- */
+  /* =====================================================
+                   NUBE (Apps Script)
+     ===================================================== */
+
+  // Guardar en la nube (pendiente)
+  const guardarNube = async () => {
+    try {
+      const payload = {
+        action: "SAVE_PENDING",
+        id: form.id || `CLOUD-${uid(10)}`,
+        ts: nowISO(),
+        nombre: form.nombre,
+        area: form.area,
+        supervisor: form.supervisor,
+        pctInicial,
+        pctFinal,
+        // El JSON del formulario para poder reanudar en otro dispositivo
+        json: JSON.stringify({
+          ...form,
+          pctInicial,
+          pctFinal,
+        }),
+      };
+      const resp = await postJSON(API_URL, payload);
+      if (resp?.ok) {
+        setForm((f) => ({ ...f, id: payload.id }));
+        setMsg({ type: "ok", text: `Guardado en la nube: ${payload.id}` });
+        await listarNube(); // refresca listado
+      } else {
+        setMsg({ type: "error", text: `No se pudo guardar en la nube: ${JSON.stringify(resp)}` });
+      }
+    } catch (e) {
+      setMsg({ type: "error", text: `Error de red: ${String(e)}` });
+    }
+  };
+
+  // Listar pendientes en la nube
+  const listarNube = async () => {
+    try {
+      setLoadingCloud(true);
+      const resp = await postJSON(API_URL, { action: "LIST_PENDING" });
+      if (resp?.ok && Array.isArray(resp.rows)) {
+        // Ordena por fecha iso descendente si viene
+        const sorted = [...resp.rows].sort((a, b) =>
+          String(b.iso || "").localeCompare(String(a.iso || ""))
+        );
+        setCloud(sorted);
+      } else {
+        setCloud([]);
+      }
+    } catch {
+      setCloud([]);
+    } finally {
+      setLoadingCloud(false);
+    }
+  };
+
+  // Eliminar de la nube
+  const eliminarNube = async (id) => {
+    try {
+      const resp = await postJSON(API_URL, { action: "DELETE_PENDING", id });
+      if (resp?.ok) {
+        setMsg({ type: "ok", text: `Eliminado de la nube: ${id}` });
+        await listarNube();
+        // Si estás editando ese mismo id, no lo borres de la vista, solo avisa
+      } else {
+        setMsg({ type: "error", text: `No se pudo eliminar: ${JSON.stringify(resp)}` });
+      }
+    } catch (e) {
+      setMsg({ type: "error", text: `Error de red: ${String(e)}` });
+    }
+  };
+
+  // Reanudar desde la nube (carga json guardado)
+  const reanudarNube = async (row) => {
+    try {
+      const raw = row?.json || "{}";
+      const parsed = JSON.parse(raw);
+      const evalsOK =
+        Array.isArray(parsed?.evaluaciones) && parsed.evaluaciones.length === ITEMS.length;
+
+      setForm({
+        id: parsed.id || row.id || "",
+        fecha: parsed.fecha || "",
+        nombre: parsed.nombre || row.nombre || "",
+        antiguedad: parsed.antiguedad || "",
+        area: parsed.area || row.area || "",
+        supervisor: parsed.supervisor || row.supervisor || "",
+        evaluaciones: evalsOK ? parsed.evaluaciones : ITEMS.map(() => emptyRow()),
+      });
+
+      setMsg({ type: "ok", text: `Reanudando caso de la nube: ${row.id}` });
+    } catch (e) {
+      setMsg({ type: "error", text: `No se pudo reanudar: ${String(e)}` });
+    }
+  };
+
+  // Cargar la nube al entrar
+  useEffect(() => {
+    listarNube();
+  }, []);
+
+  /* =====================================================
+                    ENVÍO A GOOGLE SHEETS
+     ===================================================== */
   const enviar = async () => {
     const hayAlgo =
       form.evaluaciones.some((r) => r.inicial) ||
@@ -260,7 +280,7 @@ export default function App() {
     const payload = {
       action: "CLOSE_CASE",
       ts: nowISO(),
-      id: form.id || form.cloudId || `REG-${uid(10)}`,
+      id: form.id || `REG-${uid(10)}`,
       fecha: form.fecha,
       nombre: form.nombre,
       antiguedad: form.antiguedad,
@@ -275,23 +295,24 @@ export default function App() {
       const resp = await postJSON(API_URL, payload);
       if (resp?.ok) {
         setMsg({ type: "ok", text: "Caso enviado a Google Sheets correctamente." });
-
-        if (form.cloudId) {
-          try { await postJSON(API_URL, { action: "DELETE_PENDING", id: form.cloudId }); } catch {}
-          await fetchCloudPendings();
-        }
-        if (form.id) eliminarDraft(form.id);
-
+        // Si este ID existía en la nube, lo eliminamos para no duplicar pendientes
+        try {
+          await postJSON(API_URL, { action: "DELETE_PENDING", id: payload.id });
+          await listarNube();
+        } catch {}
         setForm(emptyForm());
       } else {
-        setMsg({ type: "error", text: `No se pudo enviar. Respuesta: ${JSON.stringify(resp)}` });
+        setMsg({
+          type: "error",
+          text: `No se pudo enviar. Respuesta: ${JSON.stringify(resp)}`,
+        });
       }
-    } catch {
+    } catch (e) {
       setMsg({ type: "error", text: "Error de red al enviar el caso." });
     }
   };
 
-  /* ---------- UI helpers ---------- */
+  /* ---------- UI Msg ---------- */
   const Msg = useMemo(() => {
     if (!msg) return null;
     return (
@@ -369,13 +390,13 @@ export default function App() {
           </div>
         </div>
 
-        {/* Acciones de borrador (& nube) */}
+        {/* Acciones de borrador */}
         <div className="actions">
           <button onClick={guardarBorrador}>Guardar borrador</button>
-          <button onClick={savePendingToCloud} disabled={cloudLoading}>
-            {cloudLoading ? "Guardando..." : "Guardar en la nube (pendiente)"}
+          <button onClick={guardarNube} className="secondary">
+            Guardar en la nube (pendiente)
           </button>
-            <button onClick={() => { setForm(emptyForm()); setMsg(null); }}>
+          <button onClick={() => { setForm(emptyForm()); setMsg(null); }}>
             Limpiar formulario
           </button>
         </div>
@@ -386,71 +407,73 @@ export default function App() {
       {/* Evaluación */}
       <section className="card">
         <h2>Evaluación / 评估</h2>
-        <p className="hint">Marca solo <b>una</b> opción por columna (Inicial o Final) en cada fila.</p>
+        <p className="hint">
+          Marca solo <b>una</b> opción por columna (Inicial o Final) en cada fila.
+        </p>
 
-        <div className="eval-table">
-          <div className="thead">
-            <div className="th item">Ítem / 项目</div>
-            <div className="th">Inicial Sí / 初始是</div>
-            <div className="th">Inicial No / 初始否</div>
-            <div className="th">Final Sí / 最终是</div>
-            <div className="th">Final No / 最终否</div>
-          </div>
+        {/* Tabla semántica con layout fijo ya definido en modern.css */}
+        <div className="eval-wrapper">
+          <table className="eval-table">
+            <thead>
+              <tr>
+                <th>Ítem / 项目</th>
+                <th>Inicial Sí / 初始是</th>
+                <th>Inicial No / 初始否</th>
+                <th>Final Sí / 最终是</th>
+                <th>Final No / 最终否</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ITEMS.map((txt, idx) => {
+                const r = form.evaluaciones[idx];
+                const isI = r?.inicial || "";
+                const isF = r?.final || "";
+                return (
+                  <tr key={idx}>
+                    <td className="eval-item">
+                      <div className="item-text">{txt}</div>
+                    </td>
 
-          <div className="tbody">
-            {ITEMS.map((txt, idx) => {
-              const r = form.evaluaciones[idx];
-              const isI = r?.inicial || "";
-              const isF = r?.final || "";
-              return (
-                <div className="tr" key={idx}>
-                  <div className="td item">
-                    <div className="item-text">{txt}</div>
-                  </div>
+                    <td className="eval-cell">
+                      <input
+                        type="radio"
+                        name={`r${idx}-inicial`}
+                        checked={isI === "SI"}
+                        onChange={() => updateEval(idx, "inicial", "SI")}
+                      />
+                    </td>
 
-                  {/* Inicial Sí */}
-                  <div className="td radio">
-                    <input
-                      type="radio"
-                      name={`r${idx}-inicial`}
-                      checked={isI === "SI"}
-                      onChange={() => updateEval(idx, "inicial", "SI")}
-                    />
-                  </div>
+                    <td className="eval-cell">
+                      <input
+                        type="radio"
+                        name={`r${idx}-inicial`}
+                        checked={isI === "NO"}
+                        onChange={() => updateEval(idx, "inicial", "NO")}
+                      />
+                    </td>
 
-                  {/* Inicial No */}
-                  <div className="td radio">
-                    <input
-                      type="radio"
-                      name={`r${idx}-inicial`}
-                      checked={isI === "NO"}
-                      onChange={() => updateEval(idx, "inicial", "NO")}
-                    />
-                  </div>
+                    <td className="eval-cell">
+                      <input
+                        type="radio"
+                        name={`r${idx}-final`}
+                        checked={isF === "SI"}
+                        onChange={() => updateEval(idx, "final", "SI")}
+                      />
+                    </td>
 
-                  {/* Final Sí */}
-                  <div className="td radio">
-                    <input
-                      type="radio"
-                      name={`r${idx}-final`}
-                      checked={isF === "SI"}
-                      onChange={() => updateEval(idx, "final", "SI")}
-                    />
-                  </div>
-
-                  {/* Final No */}
-                  <div className="td radio">
-                    <input
-                      type="radio"
-                      name={`r${idx}-final`}
-                      checked={isF === "NO"}
-                      onChange={() => updateEval(idx, "final", "NO")}
-                    />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                    <td className="eval-cell">
+                      <input
+                        type="radio"
+                        name={`r${idx}-final`}
+                        checked={isF === "NO"}
+                        onChange={() => updateEval(idx, "final", "NO")}
+                      />
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
 
         {/* Resumen */}
@@ -470,49 +493,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* Casos pendientes (NUBE) */}
-      <section className="card">
-        <h2>Casos pendientes (nube)</h2>
-
-        <div className="actions" style={{ marginBottom: 10 }}>
-          <button className="secondary" onClick={fetchCloudPendings} disabled={cloudLoading}>
-            {cloudLoading ? "Actualizando..." : "Actualizar lista"}
-          </button>
-        </div>
-
-        {(!cloudPendings || cloudPendings.length === 0) ? (
-          <div className="hint">No hay pendientes en la nube.</div>
-        ) : (
-          <div className="pending">
-            <div className="pending-head">
-              <div className="col id">ID</div>
-              <div className="col when">Guardado</div>
-              <div className="col who">Nombre</div>
-              <div className="col area">Área</div>
-              <div className="col boss">Supervisor</div>
-              <div className="col act">Acciones</div>
-            </div>
-
-            {cloudPendings.map((p) => (
-              <div className="pending-row" key={p.id}>
-                <div className="col id">{p.id}</div>
-                <div className="col when">{new Date(p.iso || p.ts || Date.now()).toLocaleString()}</div>
-                <div className="col who">{p.nombre || "-"}</div>
-                <div className="col area">{p.area || "-"}</div>
-                <div className="col boss">{p.supervisor || "-"}</div>
-                <div className="col act">
-                  <button onClick={() => resumeCloudPending(p)}>Reanudar</button>
-                  <button className="danger" onClick={() => deleteCloudPending(p.id)} disabled={cloudLoading}>
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {/* Casos pendientes (LOCALES) */}
+      {/* Casos pendientes (locales) */}
       <section className="card">
         <h2>Casos pendientes (guardados localmente)</h2>
 
@@ -532,13 +513,65 @@ export default function App() {
             {drafts.map((d) => (
               <div className="pending-row" key={d.id}>
                 <div className="col id">{d.id}</div>
-                <div className="col when">{new Date(d.iso || d.ts || Date.now()).toLocaleString()}</div>
+                <div className="col when">
+                  {new Date(d.iso || d.ts || Date.now()).toLocaleString()}
+                </div>
                 <div className="col who">{d.nombre || "-"}</div>
                 <div className="col area">{d.area || "-"}</div>
                 <div className="col boss">{d.supervisor || "-"}</div>
                 <div className="col act">
-                  <button onClick={() => reanudar(d)}>Reanudar</button>
-                  <button className="danger" onClick={() => eliminarDraft(d.id)}>Eliminar</button>
+                  <button onClick={() => reanudarLocal(d)}>Reanudar</button>
+                  <button className="danger" onClick={() => eliminarLocal(d.id)}>
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Casos en la nube */}
+      <section className="card">
+        <h2>Casos en la nube (pendientes)</h2>
+
+        <div className="actions">
+          <button className="secondary" onClick={listarNube} disabled={loadingCloud}>
+            {loadingCloud ? "Actualizando…" : "Actualizar lista"}
+          </button>
+        </div>
+
+        {cloud.length === 0 ? (
+          <div className="hint">No hay pendientes en la nube.</div>
+        ) : (
+          <div className="pending">
+            <div className="pending-head">
+              <div className="col id">ID</div>
+              <div className="col when">Guardado</div>
+              <div className="col who">Nombre</div>
+              <div className="col area">Área</div>
+              <div className="col boss">Supervisor</div>
+              <div className="col perc">Inicial%</div>
+              <div className="col perc">Final%</div>
+              <div className="col act">Acciones</div>
+            </div>
+
+            {cloud.map((row) => (
+              <div className="pending-row" key={row.id}>
+                <div className="col id">{row.id}</div>
+                <div className="col when">
+                  {new Date(row.iso || Date.now()).toLocaleString()}
+                </div>
+                <div className="col who">{row.nombre || "-"}</div>
+                <div className="col area">{row.area || "-"}</div>
+                <div className="col boss">{row.supervisor || "-"}</div>
+                <div className="col perc">{row.pctInicial ?? 0}</div>
+                <div className="col perc">{row.pctFinal ?? 0}</div>
+                <div className="col act">
+                  <button onClick={() => reanudarNube(row)}>Reanudar</button>
+                  <button className="danger" onClick={() => eliminarNube(row.id)}>
+                    Eliminar
+                  </button>
                 </div>
               </div>
             ))}
