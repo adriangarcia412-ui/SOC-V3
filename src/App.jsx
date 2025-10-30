@@ -38,8 +38,6 @@ const emptyForm = () => ({
   antiguedad: "",
   area: "",
   supervisor: "",
-  retroInicial: "",
-  retroFinal: "",
   evaluaciones: ITEMS.map(() => emptyRow()),
 });
 
@@ -50,9 +48,26 @@ export default function App() {
   const [form, setForm] = useState(emptyForm());
   const [pctInicial, setPctInicial] = useState(0);
   const [pctFinal, setPctFinal] = useState(0);
+
+  // Mantengo el estado de drafts para no romper nada, pero ya no se muestra la UI local
+  const [drafts, setDrafts] = useState([]);
+
+  // Pendientes en la nube
   const [cloud, setCloud] = useState([]);
   const [loadingCloud, setLoadingCloud] = useState(false);
+
   const [msg, setMsg] = useState(null);
+
+  /* ---------- cargar drafts del localStorage (no se muestra UI) ---------- */
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_DRAFTS);
+      const list = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(list)) setDrafts(list);
+    } catch {
+      setDrafts([]);
+    }
+  }, []);
 
   /* ---------- recálculo de % inicial/final ---------- */
   useEffect(() => {
@@ -91,8 +106,6 @@ export default function App() {
         supervisor: form.supervisor,
         pctInicial,
         pctFinal,
-        retroInicial: form.retroInicial,
-        retroFinal: form.retroFinal,
         json: JSON.stringify({ ...form, pctInicial, pctFinal }),
       };
       const resp = await postJSON(API_URL, payload);
@@ -155,8 +168,6 @@ export default function App() {
         antiguedad: parsed.antiguedad || "",
         area: parsed.area || row.area || "",
         supervisor: parsed.supervisor || row.supervisor || "",
-        retroInicial: parsed.retroInicial || "",
-        retroFinal: parsed.retroFinal || "",
         evaluaciones: evalsOK ? parsed.evaluaciones : ITEMS.map(() => emptyRow()),
       });
 
@@ -192,12 +203,10 @@ export default function App() {
       antiguedad: form.antiguedad,
       area: form.area,
       supervisor: form.supervisor,
-      retroInicial: form.retroInicial,
-      retroFinal: form.retroFinal,
       pctInicial,
       pctFinal,
       rows: form.evaluaciones,
-      items: ITEMS,
+      items: ITEMS, // para que el backend cree/llene columnas por ítem
     };
 
     try {
@@ -266,7 +275,7 @@ export default function App() {
             />
           </div>
 
-          {/* Antigüedad */}
+          {/* Antigüedad con menú desplegable bilingüe */}
           <div className="field">
             <label>Antigüedad / 工龄:</label>
             <select
@@ -274,10 +283,10 @@ export default function App() {
               onChange={(e) => setField("antiguedad", e.target.value)}
             >
               <option value="">Seleccione… / 请选择…</option>
-              <option value="<6m">Menos de 6 meses / 少于6个月</option>
-              <option value="<1y">Menos de 1 año / 少于1年</option>
-              <option value="<2y">Menos de 2 años / 少于2年</option>
-              <option value=">=2y">Más de 2 años / 多于2年</option>
+              <option value="&lt;6m">Menos de 6 meses / 少于6个月</option>
+              <option value="&lt;1y">Menos de 1 año / 少于1年</option>
+              <option value="&lt;2y">Menos de 2 años / 少于2年</option>
+              <option value="&gt;=2y">Más de 2 años / 多于2年</option>
             </select>
           </div>
 
@@ -302,7 +311,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Acciones */}
+        {/* Acciones: sin “Guardar borrador”, botones bilingües */}
         <div className="actions">
           <button onClick={guardarNube} className="secondary">
             Guardar en la nube / 云端保存
@@ -324,6 +333,7 @@ export default function App() {
 
         <div className="eval-wrapper">
           <table className="eval-table">
+            {/* Control fino de anchos de columna */}
             <colgroup>
               <col className="eval-col-item" />
               <col className="eval-col-narrow" />
@@ -395,29 +405,6 @@ export default function App() {
           </table>
         </div>
 
-        {/* Retroalimentación */}
-        <div className="summary">
-          <div className="field" style={{ gridColumn: "1 / span 2" }}>
-            <label>Retroalimentación inicial / 初始反馈:</label>
-            <textarea
-              rows="3"
-              value={form.retroInicial}
-              onChange={(e) => setField("retroInicial", e.target.value)}
-              placeholder="Escriba la retroalimentación inicial"
-            />
-          </div>
-
-          <div className="field" style={{ gridColumn: "1 / span 2" }}>
-            <label>Retroalimentación final / 最终反馈:</label>
-            <textarea
-              rows="3"
-              value={form.retroFinal}
-              onChange={(e) => setField("retroFinal", e.target.value)}
-              placeholder="Escriba la retroalimentación final"
-            />
-          </div>
-        </div>
-
         {/* Resumen */}
         <div className="summary">
           <div className="field">
@@ -434,6 +421,8 @@ export default function App() {
           <button onClick={enviar}>Enviar a Google Sheets (cerrar caso)</button>
         </div>
       </section>
+
+      {/* (Eliminado) Casos pendientes guardados localmente */}
 
       {/* Casos en la nube */}
       <section className="card">
@@ -473,4 +462,20 @@ export default function App() {
                 <div className="col perc">{row.pctFinal ?? 0}</div>
                 <div className="col act">
                   <button onClick={() => reanudarNube(row)}>Reanudar</button>
-                  <button className="danger"
+                  <button className="danger" onClick={() => eliminarNube(row.id)}>
+                    Eliminar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Footer */}
+      <footer className="footer">
+        <span>Hengli · SOC V3</span>
+      </footer>
+    </div>
+  );
+}
