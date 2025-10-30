@@ -49,7 +49,7 @@ export default function App() {
   const [pctInicial, setPctInicial] = useState(0);
   const [pctFinal, setPctFinal] = useState(0);
 
-  // Borradores locales (se dejó el soporte, aunque quitamos el botón)
+  // Mantengo el estado de drafts para no romper nada, pero ya no se muestra la UI local
   const [drafts, setDrafts] = useState([]);
 
   // Pendientes en la nube
@@ -58,7 +58,7 @@ export default function App() {
 
   const [msg, setMsg] = useState(null);
 
-  /* ---------- cargar drafts del localStorage ---------- */
+  /* ---------- cargar drafts del localStorage (no se muestra UI) ---------- */
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY_DRAFTS);
@@ -422,63 +422,7 @@ export default function App() {
         </div>
       </section>
 
-      {/* Pendientes locales (UI mantenida, sin botón de crear borrador) */}
-      <section className="card">
-        <h2>Casos pendientes (guardados localmente)</h2>
-        {drafts.length === 0 ? (
-          <div className="hint">No hay pendientes.</div>
-        ) : (
-          <div className="pending">
-            <div className="pending-head">
-              <div className="col id">ID</div>
-              <div className="col when">Guardado</div>
-              <div className="col who">Nombre</div>
-              <div className="col area">Área</div>
-              <div className="col boss">Supervisor</div>
-              <div className="col act">Acciones</div>
-            </div>
-
-            {drafts.map((d) => (
-              <div className="pending-row" key={d.id}>
-                <div className="col id">{d.id}</div>
-                <div className="col when">
-                  {new Date(d.iso || d.ts || Date.now()).toLocaleString()}
-                </div>
-                <div className="col who">{d.nombre || "-"}</div>
-                <div className="col area">{d.area || "-"}</div>
-                <div className="col boss">{d.supervisor || "-"}</div>
-                <div className="col act">
-                  <button onClick={() => {
-                    setForm({
-                      id: d.id,
-                      fecha: d.fecha || "",
-                      nombre: d.nombre || "",
-                      antiguedad: d.antiguedad || "",
-                      area: d.area || "",
-                      supervisor: d.supervisor || "",
-                      evaluaciones:
-                        Array.isArray(d.evaluaciones) && d.evaluaciones.length === ITEMS.length
-                          ? d.evaluaciones
-                          : ITEMS.map(() => emptyRow()),
-                    });
-                    setMsg({ type: "ok", text: `Reanudando caso ${d.id}` });
-                  }}>
-                    Reanudar
-                  </button>
-                  <button className="danger" onClick={() => {
-                    const next = drafts.filter((x) => x.id !== d.id);
-                    localStorage.setItem(STORAGE_KEY_DRAFTS, JSON.stringify(next));
-                    setDrafts(next);
-                    if (form.id === d.id) setForm(emptyForm());
-                  }}>
-                    Eliminar
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </section>
+      {/* (Eliminado) Casos pendientes guardados localmente */}
 
       {/* Casos en la nube */}
       <section className="card">
