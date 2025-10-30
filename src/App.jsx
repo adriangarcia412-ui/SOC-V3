@@ -39,7 +39,7 @@ const emptyForm = () => ({
   area: "",
   supervisor: "",
   evaluaciones: ITEMS.map(() => emptyRow()),
-  // NUEVO: retroalimentaciones
+  // NUEVO: retroalimentaciones (se mantienen en el estado y se envían a GS)
   retroInicial: "",
   retroFinal: "",
 });
@@ -109,7 +109,7 @@ export default function App() {
         supervisor: form.supervisor,
         pctInicial,
         pctFinal,
-        // mantenemos el snapshot para reanudar
+        // mantenemos el snapshot completo (incluye retroInicial/retroFinal)
         json: JSON.stringify({ ...form, pctInicial, pctFinal }),
       };
       const resp = await postJSON(API_URL, payload);
@@ -211,12 +211,15 @@ export default function App() {
       supervisor: form.supervisor,
       pctInicial,
       pctFinal,
-      // 👇 NUEVO: mandamos las retroalimentaciones
+      // 👇 AQUI enviamos explícitamente las retroalimentaciones
       retroInicial: form.retroInicial || "",
       retroFinal: form.retroFinal || "",
       rows: form.evaluaciones,
       items: ITEMS,
     };
+
+    // Útil para verificar en el navegador que los campos viajan:
+    console.log("Payload CLOSE_CASE:", payload);
 
     try {
       const resp = await postJSON(API_URL, payload);
@@ -333,7 +336,7 @@ export default function App() {
         {Msg}
       </section>
 
-      {/* Evaluación */}
+        {/* Evaluación */}
       <section className="card">
         <h2>Evaluación / 评估</h2>
         <p className="hint">
@@ -414,7 +417,7 @@ export default function App() {
           </table>
         </div>
 
-        {/* NUEVO: Retroalimentaciones debajo de la tabla y arriba del resumen */}
+        {/* Retroalimentaciones: debajo de la tabla y arriba del resumen */}
         <div className="grid-2" style={{ marginTop: 16 }}>
           <div className="field">
             <label>Retroalimentación inicial / 初始反馈:</label>
