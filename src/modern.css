@@ -131,6 +131,17 @@ html, body {
   background: #fff;
 }
 
+/* >>> Nuevo: textarea con el mismo look que los inputs <<< */
+.field textarea {
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+  resize: vertical;         /* permitir ajustar altura si lo desean */
+  min-height: 80px;
+}
+
 /* Resumen (% inicial/final) */
 .summary {
   display: grid;
