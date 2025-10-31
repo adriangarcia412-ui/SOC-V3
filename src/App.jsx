@@ -39,7 +39,7 @@ const emptyForm = () => ({
   area: "",
   supervisor: "",
   evaluaciones: ITEMS.map(() => emptyRow()),
-  // NUEVO: retroalimentaciones (se mantienen en el estado y se envían a GS)
+  // Retroalimentaciones
   retroInicial: "",
   retroFinal: "",
 });
@@ -52,7 +52,7 @@ export default function App() {
   const [pctInicial, setPctInicial] = useState(0);
   const [pctFinal, setPctFinal] = useState(0);
 
-  // Borradores locales (se dejó el soporte, aunque quitamos el botón)
+  // (se mantiene soporte a drafts aunque no se usen botones locales)
   const [drafts, setDrafts] = useState([]);
 
   // Pendientes en la nube
@@ -109,7 +109,6 @@ export default function App() {
         supervisor: form.supervisor,
         pctInicial,
         pctFinal,
-        // mantenemos el snapshot completo (incluye retroInicial/retroFinal)
         json: JSON.stringify({ ...form, pctInicial, pctFinal }),
       };
       const resp = await postJSON(API_URL, payload);
@@ -211,15 +210,11 @@ export default function App() {
       supervisor: form.supervisor,
       pctInicial,
       pctFinal,
-      // 👇 AQUI enviamos explícitamente las retroalimentaciones
       retroInicial: form.retroInicial || "",
       retroFinal: form.retroFinal || "",
       rows: form.evaluaciones,
       items: ITEMS,
     };
-
-    // Útil para verificar en el navegador que los campos viajan:
-    console.log("Payload CLOSE_CASE:", payload);
 
     try {
       const resp = await postJSON(API_URL, payload);
@@ -287,7 +282,7 @@ export default function App() {
             />
           </div>
 
-          {/* Antigüedad con menú desplegable bilingüe */}
+          {/* Antigüedad */}
           <div className="field">
             <label>Antigüedad / 工龄:</label>
             <select
@@ -336,7 +331,7 @@ export default function App() {
         {Msg}
       </section>
 
-        {/* Evaluación */}
+      {/* Evaluación */}
       <section className="card">
         <h2>Evaluación / 评估</h2>
         <p className="hint">
@@ -345,7 +340,6 @@ export default function App() {
 
         <div className="eval-wrapper">
           <table className="eval-table">
-            {/* Control fino de anchos de columna */}
             <colgroup>
               <col className="eval-col-item" />
               <col className="eval-col-narrow" />
@@ -417,7 +411,7 @@ export default function App() {
           </table>
         </div>
 
-        {/* Retroalimentaciones: debajo de la tabla y arriba del resumen */}
+        {/* Retroalimentaciones */}
         <div className="grid-2" style={{ marginTop: 16 }}>
           <div className="field">
             <label>Retroalimentación inicial / 初始反馈:</label>
@@ -439,35 +433,36 @@ export default function App() {
           </div>
         </div>
 
-        {/* Resumen */}
+        {/* Resumen (bilingüe) */}
         <div className="summary">
           <div className="field">
-            <label>Porcentaje de cumplimiento inicial (%):</label>
+            <label>Porcentaje de cumplimiento inicial (%) / 初始达成率（%）:</label>
             <input value={pctInicial} readOnly />
           </div>
           <div className="field">
-            <label>Porcentaje de cumplimiento final (%):</label>
+            <label>Porcentaje de cumplimiento final (%) / 最终达成率（%）:</label>
             <input value={pctFinal} readOnly />
           </div>
         </div>
 
         <div className="actions">
-          <button onClick={enviar}>Enviar a Google Sheets (cerrar caso)</button>
+          {/* Botón solo en español como pediste */}
+          <button onClick={enviar}>Enviar</button>
         </div>
       </section>
 
       {/* Casos en la nube */}
       <section className="card">
-        <h2>Casos en la nube (pendientes)</h2>
+        <h2>Casos en la nube (pendientes) / 云端待处理案例</h2>
 
         <div className="actions">
           <button className="secondary" onClick={listarNube} disabled={loadingCloud}>
-            {loadingCloud ? "Actualizando…" : "Actualizar lista"}
+            {loadingCloud ? "Actualizando…" : "Actualizar lista / 刷新列表"}
           </button>
         </div>
 
         {cloud.length === 0 ? (
-          <div className="hint">No hay pendientes en la nube.</div>
+          <div className="hint">No hay pendientes en la nube. / 云端暂无待处理记录。</div>
         ) : (
           <div className="pending">
             <div className="pending-head">
