@@ -39,7 +39,6 @@ const emptyForm = () => ({
   area: "",
   supervisor: "",
   evaluaciones: ITEMS.map(() => emptyRow()),
-  // Retroalimentaciones
   retroInicial: "",
   retroFinal: "",
 });
@@ -52,13 +51,9 @@ export default function App() {
   const [pctInicial, setPctInicial] = useState(0);
   const [pctFinal, setPctFinal] = useState(0);
 
-  // (se mantiene soporte a drafts aunque no se usen botones locales)
   const [drafts, setDrafts] = useState([]);
-
-  // Pendientes en la nube
   const [cloud, setCloud] = useState([]);
   const [loadingCloud, setLoadingCloud] = useState(false);
-
   const [msg, setMsg] = useState(null);
 
   /* ---------- cargar drafts del localStorage ---------- */
@@ -282,7 +277,6 @@ export default function App() {
             />
           </div>
 
-          {/* Antigüedad */}
           <div className="field">
             <label>Antigüedad / 工龄:</label>
             <select
@@ -446,8 +440,8 @@ export default function App() {
         </div>
 
         <div className="actions">
-          {/* Botón solo en español como pediste */}
-          <button onClick={enviar}>Enviar</button>
+          {/* ← Ajuste solicitado */}
+          <button onClick={enviar}>Enviar / 提交</button>
         </div>
       </section>
 
